@@ -2,10 +2,22 @@ pub mod utils;
 
 use adw::prelude::AdwApplicationWindowExt;
 use gtk::prelude::*;
+use lazy_static::lazy_static;
+use crate::utils::logger::{LogLevel, Logger};
+
+lazy_static! {
+    static ref LOG: Logger = Logger::new("main",LogLevel::Debug);
+}
 
 fn main(){
-    gtk::init().expect("Failed to init GTK");
-    adw::init().expect("Failed to init ADW");
+    gtk::init().unwrap_or_else(|e|{
+        LOG.error("Failed to initialize GTK");
+        LOG.error(&format!("Error: {}", e));
+    });
+    adw::init().unwrap_or_else(|e|{
+        LOG.error("Failed to initialize ADW");
+        LOG.error(&format!("Error: {}", e));
+    });
 
     let app = adw::Application::new(Some("com.btde.starlight"), Default::default());
 
