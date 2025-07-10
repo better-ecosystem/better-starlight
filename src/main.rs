@@ -44,6 +44,7 @@ async fn main(){
     app.connect_activate(|app| {
         let window = build_main_ui(app);
         setup_layer_shell(&window);
+        LOG.debug("window layer setup complete");
         window.present();
     });
 

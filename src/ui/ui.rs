@@ -1,3 +1,5 @@
+use std::process::exit;
+
 use adw::{ApplicationWindow, prelude::AdwApplicationWindowExt};
 use gtk::{
     gdk::Key, prelude::{BoxExt, EntryExt, GtkWindowExt, ListBoxRowExt, WidgetExt}, Box, EventControllerKey
@@ -24,7 +26,8 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
         Key::Escape => {
             LOG.debug("application closed");
             window_clone.close();
-            true.into()
+            true;
+            exit(0);
         }
         _ => false.into(),
     });
