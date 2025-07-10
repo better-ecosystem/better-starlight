@@ -1,6 +1,7 @@
 pub mod utils;
 
 use adw::prelude::AdwApplicationWindowExt;
+use clap::{Parser, ArgAction};
 use gtk::{gdk::Key, prelude::*, EventControllerKey};
 use gtk4_layer_shell::{KeyboardMode, Layer, LayerShell};
 use lazy_static::lazy_static;
@@ -11,7 +12,21 @@ lazy_static! {
     static ref LOG: Logger = Logger::new("main",LogLevel::Debug);
 }
 
+// args 
+#[derive(Parser, Debug)]
+#[clap(author, version, long_about = None)]
+struct Args{
+    /// show debug logs
+    #[clap(short, long, action = ArgAction::SetTrue)]
+    debug: bool,
+}
+
 fn main(){
+
+    let args = Args::parse();
+
+    Logger::set_logging_enabled(args.debug);
+
     gtk::init().unwrap_or_else(|e|{
         LOG.error("Failed to initialize GTK");
         LOG.error(&format!("Error: {}", e));
@@ -24,7 +39,8 @@ fn main(){
     let app = adw::Application::new(Some("com.btde.starlight"), Default::default());
 
     app.connect_activate(build_ui);
-    app.run();
+    let args: Vec<String> = Vec::new();
+    app.run_with_args(&args);
 }
 
 pub fn build_ui(app: &adw::Application){
