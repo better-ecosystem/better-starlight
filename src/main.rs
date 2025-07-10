@@ -1,7 +1,7 @@
 pub mod utils;
 
 use adw::prelude::AdwApplicationWindowExt;
-use gtk::prelude::*;
+use gtk::{gdk::Key, prelude::*, EventControllerKey};
 use gtk4_layer_shell::{KeyboardMode, Layer, LayerShell};
 use lazy_static::lazy_static;
 
@@ -36,8 +36,25 @@ pub fn build_ui(app: &adw::Application){
     setup_layer_shell(&window);
     LOG.debug("Window layer setup complete");
 
+    // Close app when presses ESCAPE button
+    let key_controller = EventControllerKey::new();
+    let window_clone = window.clone();
+    key_controller.connect_key_pressed(move |_controller , _key, _keycode , _state| match _key{
+        Key::Escape => {
+            LOG.debug("Application closed");
+            window_clone.close();
+            true.into()
+        }
+        _ => false.into(),
+    });
     let search_entry = gtk::Entry::new();
-    window.set_content(Some(&search_entry));
+    search_entry.set_can_focus(false);
+    
+    let main_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    main_box.set_size_request(200, 400);
+    main_box.append(&search_entry);
+    window.set_content(Some(&main_box));
+    window.add_controller(key_controller);
 
     window.present(); 
 }
