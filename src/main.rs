@@ -1,6 +1,7 @@
+pub mod utils;
+
 use adw::prelude::AdwApplicationWindowExt;
 use gtk::prelude::*;
-
 
 fn main(){
     gtk::init().expect("Failed to init GTK");
