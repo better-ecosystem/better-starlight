@@ -114,6 +114,7 @@ dependencies = [
  "lazy_static",
  "libadwaita",
  "once_cell",
+ "serde",
  "tokio",
 ]
 
