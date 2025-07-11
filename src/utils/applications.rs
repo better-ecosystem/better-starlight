@@ -1,271 +1,392 @@
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tokio::fs;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use serde::{Deserialize, Serialize};
+use tokio::fs as async_fs;
+use tokio::task;
+use futures::future::join_all;
+use crate::utils::logger::{LogLevel, Logger};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DesktopEntry {
-    pub name: String,
-    pub exec: String,
-    pub icon: Option<String>,
-    pub comment: Option<String>,
-    pub categories: Vec<String>,
-    pub mime_type: Vec<String>,
-    pub no_display: bool,
-    pub hidden: bool,
-    pub startup_notify: bool,
-    pub terminal: bool,
-    pub version: Option<String>,
-    pub file_path: PathBuf,
-    pub generic_name: Option<String>,
-    pub keywords: Vec<String>,
-    pub startup_wm_class: Option<String>,
-    pub try_exec: Option<String>,
-    pub r#type: String,
+lazy_static::lazy_static! {
+    static ref LOG: Logger = Logger::new("applications", LogLevel::Debug);
 }
 
-impl Default for DesktopEntry {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DesktopApplication {
+    pub name: String,
+    pub generic_name: Option<String>,
+    pub comment: Option<String>,
+    pub exec: String,
+    pub icon: Option<String>,
+    pub categories: Vec<String>,
+    pub keywords: Vec<String>,
+    pub mime_types: Vec<String>,
+    pub startup_notify: bool,
+    pub no_display: bool,
+    pub hidden: bool,
+    pub terminal: bool,
+    pub startup_wm_class: Option<String>,
+    pub desktop_file_path: PathBuf,
+    pub try_exec: Option<String>,
+    pub path: Option<String>,
+    pub actions: Vec<String>,
+}
+
+impl Default for DesktopApplication {
     fn default() -> Self {
         Self {
             name: String::new(),
+            generic_name: None,
+            comment: None,
             exec: String::new(),
             icon: None,
-            comment: None,
             categories: Vec::new(),
-            mime_type: Vec::new(),
+            keywords: Vec::new(),
+            mime_types: Vec::new(),
+            startup_notify: true,
             no_display: false,
             hidden: false,
             terminal: false,
-            version: None,
-            startup_notify: false,
-            file_path: PathBuf::new(),
-            generic_name: None,
-            keywords: Vec::new(),
             startup_wm_class: None,
+            desktop_file_path: PathBuf::new(),
             try_exec: None,
-            r#type: "Application".to_string(),
+            path: None,
+            actions: Vec::new(),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct DesktopFileReader {
+pub enum ApplicationError {
+    IoError(std::io::Error),
+    ParseError(String),
+    InvalidDesktopFile(String),
+}
+
+impl From<std::io::Error> for ApplicationError {
+    fn from(err: std::io::Error) -> Self {
+        ApplicationError::IoError(err)
+    }
+}
+
+pub struct ApplicationManager {
+    applications: HashMap<String, DesktopApplication>,
     search_paths: Vec<PathBuf>,
 }
 
-impl DesktopFileReader {
+impl ApplicationManager {
     pub fn new() -> Self {
         let mut search_paths = Vec::new();
-
-        if let Some(home) = std::env::var_os("HOME") {
-            let mut user_apps = PathBuf::from(home);
-            user_apps.push(".local/share/applications");
-            search_paths.push(user_apps);
+        
+        if let Ok(data_dirs) = std::env::var("XDG_DATA_DIRS") {
+            for dir in data_dirs.split(':') {
+                search_paths.push(PathBuf::from(dir).join("applications"));
+            }
+        } else {
+            search_paths.push(PathBuf::from("/usr/share/applications"));
+            search_paths.push(PathBuf::from("/usr/local/share/applications"));
         }
-
-        let xdg_data_dirs = std::env::var("XDG_DATA_DIRS")
-            .unwrap_or_else(|_| "/usr/local/share:/usr/share".to_string());
-
-        for dir in xdg_data_dirs.split(':') {
-            let mut path = PathBuf::from(dir);
-            path.push("applications");
-            search_paths.push(path);
+        
+        if let Ok(home) = std::env::var("HOME") {
+            search_paths.push(PathBuf::from(home).join(".local/share/applications"));
         }
-
-        // flatpak directories
-        if let Some(home) = std::env::var_os("HOME") {
-            let mut flatpak_user = PathBuf::from(home);
-            flatpak_user.push(".local/share/flatpak/exports/share/applications");
-            search_paths.push(flatpak_user);
+        
+        // flatpak apps
+        if let Ok(home) = std::env::var("HOME") {
+            search_paths.push(PathBuf::from(home).join(".local/share/flatpak/exports/share/applications"));
         }
-
         search_paths.push(PathBuf::from("/var/lib/flatpak/exports/share/applications"));
 
-        Self { search_paths }
-    }
-
-    pub fn with_custom_paths(paths: Vec<PathBuf>) -> Self {
         Self {
-            search_paths: paths,
+            applications: HashMap::new(),
+            search_paths,
         }
     }
 
-    pub async fn read_all_desktop_files(
-        &self,
-    ) -> Result<Vec<DesktopEntry>, Box<dyn std::error::Error>> {
-        let mut entries = Vec::new();
-        let mut seen_files = std::collections::HashSet::new();
-
+    /// load all desktop applications from search paths asynchronously
+    pub async fn load_applications(&mut self) -> Result<(), ApplicationError> {
+        LOG.debug("Starting to load desktop applications...");
+        
+        let mut tasks = Vec::new();
+        
         for path in &self.search_paths {
             if path.exists() {
-                let mut dir_entries = self.read_desktop_files_from_dir(path).await?;
-
-                // filter duplicates names
-                dir_entries.retain(|entry| {
-                    if let Some(filename) = entry.file_path.file_name() {
-                        seen_files.insert(filename.to_owned())
-                    } else {
-                        true
-                    }
+                let path_clone = path.clone();
+                let task = task::spawn(async move {
+                    Self::scan_directory(path_clone).await
                 });
-
-                entries.extend(dir_entries);
+                tasks.push(task);
             }
         }
-
-        Ok(entries)
+        
+        let results = join_all(tasks).await;
+        let mut total_loaded = 0;
+        
+        for result in results {
+            match result {
+                Ok(Ok(apps)) => {
+                    for app in apps {
+                        // Use desktop file name as key for deduplication
+                        let key = app.desktop_file_path
+                            .file_stem()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        self.applications.insert(key, app);
+                        total_loaded += 1;
+                    }
+                }
+                Ok(Err(e)) => {
+                    LOG.error(&format!("Error loading applications: {:?}", e));
+                }
+                Err(e) => {
+                    LOG.error(&format!("Task error: {:?}", e));
+                }
+            }
+        }
+        
+        LOG.debug(&format!("Loaded {} applications", total_loaded));
+        Ok(())
     }
 
-    async fn read_desktop_files_from_dir(
-        &self,
-        dir: &Path,
-    ) -> Result<Vec<DesktopEntry>, Box<dyn std::error::Error>> {
-        let mut entries = Vec::new();
-        let mut dir_reader = fs::read_dir(dir).await?;
-
-        while let Some(entry) = dir_reader.next_entry().await? {
+    /// scan dirs for .desktop files
+    async fn scan_directory(path: PathBuf) -> Result<Vec<DesktopApplication>, ApplicationError> {
+        LOG.debug(&format!("Scanning directory: {:?}", path));
+        let mut applications = Vec::new();
+        
+        let mut entries = async_fs::read_dir(&path).await?;
+        while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("desktop") {
-                match self.parse_desktop_file(&path).await {
-                    Ok(desktop_entry) => {
-
-                        // skip hidden or no-display entries
-                        if !desktop_entry.hidden && !desktop_entry.no_display {
-                            entries.push(desktop_entry);
-                        }
+            if path.extension().map_or(false, |ext| ext == "desktop") {
+                match Self::parse_desktop_file(&path).await {
+                    Ok(Some(app)) => applications.push(app),
+                    Ok(None) => {
+                        LOG.debug(&format!("Skipped desktop file: {:?}", path));
                     }
                     Err(e) => {
-                        eprintln!("Error parsing desktop file {:?}: {}", path, e);
+                        LOG.warn(&format!("Failed to parse {:?}: {:?}", path, e));
                     }
                 }
             }
         }
-
-        Ok(entries)
+        
+        Ok(applications)
     }
 
-    async fn parse_desktop_file(
-        &self,
-        file_path: &Path,
-    ) -> Result<DesktopEntry, Box<dyn std::error::Error>> {
-        let file = fs::File::open(file_path).await?;
-        let reader = BufReader::new(file);
-        let mut lines = reader.lines();
-
-        let mut entry = DesktopEntry::default();
-        entry.file_path = file_path.to_path_buf();
-
-        let mut in_desktop_entry_section = false;
-
-        while let Some(line) = lines.next_line().await? {
+    /// parse a .desktop file into a DesktopApplication
+    async fn parse_desktop_file(path: &Path) -> Result<Option<DesktopApplication>, ApplicationError> {
+        let content = async_fs::read_to_string(path).await?;
+        
+        let mut app = DesktopApplication::default();
+        app.desktop_file_path = path.to_path_buf();
+        
+        let mut in_desktop_entry = false;
+        let mut found_desktop_entry = false;
+        
+        for line in content.lines() {
             let line = line.trim();
-
+            
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-
-            if line == "[Desktop Entry]" {
-                in_desktop_entry_section = true;
-                continue;
-            }
-
+            
             if line.starts_with('[') && line.ends_with(']') {
-                in_desktop_entry_section = false;
+                in_desktop_entry = line == "[Desktop Entry]";
+                if in_desktop_entry {
+                    found_desktop_entry = true;
+                }
                 continue;
             }
-
-            if !in_desktop_entry_section {
+            
+            if !in_desktop_entry {
                 continue;
             }
-
+            
             if let Some((key, value)) = line.split_once('=') {
                 let key = key.trim();
                 let value = value.trim();
-
+                
                 match key {
-                    "Name" => entry.name = value.to_string(),
-                    "Exec" => entry.exec = value.to_string(),
-                    "Icon" => entry.icon = Some(value.to_string()),
-                    "Comment" => entry.comment = Some(value.to_string()),
+                    "Name" => app.name = value.to_string(),
+                    "GenericName" => app.generic_name = Some(value.to_string()),
+                    "Comment" => app.comment = Some(value.to_string()),
+                    "Exec" => app.exec = value.to_string(),
+                    "Icon" => app.icon = Some(value.to_string()),
                     "Categories" => {
-                        entry.categories = value
-                            .split(';')
+                        app.categories = value.split(';')
                             .filter(|s| !s.is_empty())
                             .map(|s| s.to_string())
-                            .collect()
+                            .collect();
+                    }
+                    "Keywords" => {
+                        app.keywords = value.split(';')
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string())
+                            .collect();
                     }
                     "MimeType" => {
-                        entry.mime_type = value
-                            .split(';')
+                        app.mime_types = value.split(';')
                             .filter(|s| !s.is_empty())
                             .map(|s| s.to_string())
-                            .collect()
+                            .collect();
                     }
-                    "NoDisplay" => entry.no_display = value.to_lowercase() == "true",
-                    "Hidden" => entry.hidden = value.to_lowercase() == "true",
-                    "Terminal" => entry.terminal = value.to_lowercase() == "true",
-                    "StartupNotify" => entry.startup_notify = value.to_lowercase() == "true",
-                    "GenericName" => entry.generic_name = Some(value.to_string()),
-                    "Keywords" => {
-                        entry.keywords = value
-                            .split(';')
+                    "StartupNotify" => app.startup_notify = value.eq_ignore_ascii_case("true"),
+                    "NoDisplay" => app.no_display = value.eq_ignore_ascii_case("true"),
+                    "Hidden" => app.hidden = value.eq_ignore_ascii_case("true"),
+                    "Terminal" => app.terminal = value.eq_ignore_ascii_case("true"),
+                    "StartupWMClass" => app.startup_wm_class = Some(value.to_string()),
+                    "TryExec" => app.try_exec = Some(value.to_string()),
+                    "Path" => app.path = Some(value.to_string()),
+                    "Actions" => {
+                        app.actions = value.split(';')
                             .filter(|s| !s.is_empty())
                             .map(|s| s.to_string())
-                            .collect()
+                            .collect();
                     }
-                    "StartupWMClass" => entry.startup_wm_class = Some(value.to_string()),
-                    "TryExec" => entry.try_exec = Some(value.to_string()),
-                    "Version" => entry.version = Some(value.to_string()),
-                    "Type" => entry.r#type = value.to_string(),
-                    _ => {} // ignore unknown one
+                    _ => {} // ignore unknown keys
                 }
             }
         }
-
-        if entry.name.is_empty() {
-            return Err("Desktop file missing required Name field".into());
+        
+        if !found_desktop_entry {
+            return Err(ApplicationError::InvalidDesktopFile(
+                "No [Desktop Entry] section found".to_string()
+            ));
         }
-
-        if entry.exec.is_empty() {
-            return Err("Desktop file missing required Exec field".into());
+        
+        // skip applications that shouldn't be displayed
+        if app.no_display || app.hidden || app.name.is_empty() || app.exec.is_empty() {
+            return Ok(None);
         }
-
-        Ok(entry)
+        
+        // check if TryExec is present
+        if let Some(try_exec) = &app.try_exec {
+            if !Self::command_exists(try_exec) {
+                LOG.debug(&format!("TryExec command not found: {}", try_exec));
+                return Ok(None);
+            }
+        }
+        
+        Ok(Some(app))
     }
 
-    pub async fn find_desktop_file_by_name(
-        &self,
-        name: &str,
-    ) -> Result<Option<DesktopEntry>, Box<dyn std::error::Error>> {
-        let entries = self.read_all_desktop_files().await?;
-        Ok(entries.into_iter().find(|entry| entry.name == name))
+    fn command_exists(command: &str) -> bool {
+        which::which(command).is_ok()
     }
 
-    pub async fn search_desktop_files(
-        &self,
-        query: &str,
-    ) -> Result<Vec<DesktopEntry>, Box<dyn std::error::Error>> {
-        let entries = self.read_all_desktop_files().await?;
-        let query_lower = query.to_lowercase();
+    pub fn get_applications(&self) -> Vec<&DesktopApplication> {
+        self.applications.values().collect()
+    }
 
-        Ok(entries
-            .into_iter()
-            .filter(|entry| {
-                entry.name.to_lowercase().contains(&query_lower)
-                    || entry
-                        .comment
-                        .as_ref()
-                        .map_or(false, |c| c.to_lowercase().contains(&query_lower))
-                    || entry
-                        .generic_name
-                        .as_ref()
-                        .map_or(false, |g| g.to_lowercase().contains(&query_lower))
-                    || entry
-                        .keywords
-                        .iter()
-                        .any(|k| k.to_lowercase().contains(&query_lower))
+    /// search applications by name, description, or keywords
+    pub fn search_applications(&self, query: &str) -> Vec<&DesktopApplication> {
+        let query = query.to_lowercase();
+        
+        self.applications
+            .values()
+            .filter(|app| {
+                app.name.to_lowercase().contains(&query)
+                    || app.generic_name.as_ref().map_or(false, |name| name.to_lowercase().contains(&query))
+                    || app.comment.as_ref().map_or(false, |comment| comment.to_lowercase().contains(&query))
+                    || app.keywords.iter().any(|keyword| keyword.to_lowercase().contains(&query))
+                    || app.categories.iter().any(|category| category.to_lowercase().contains(&query))
             })
-            .collect())
+            .collect()
+    }
+
+    pub fn get_applications_by_category(&self, category: &str) -> Vec<&DesktopApplication> {
+        self.applications
+            .values()
+            .filter(|app| app.categories.iter().any(|cat| cat.eq_ignore_ascii_case(category)))
+            .collect()
+    }
+
+    pub fn get_application(&self, name: &str) -> Option<&DesktopApplication> {
+        self.applications.get(name)
+    }
+
+    /// launch an application
+    pub async fn launch_application(&self, app: &DesktopApplication) -> Result<(), ApplicationError> {
+        LOG.debug(&format!("Launching application: {}", app.name));
+        
+        let mut command = self.parse_exec_command(&app.exec);
+        
+        // Set working directory if specified
+        if let Some(path) = &app.path {
+            command.current_dir(path);
+        }
+        
+        // handle terminal applications
+        if app.terminal {
+
+            // try to find a terminal emulator to launch terminal apps
+            let terminal_emulators = ["gnome-terminal", "konsole", "foot", "alacritty", "kitty"];
+            let mut terminal_cmd = None;
+            
+            for terminal in &terminal_emulators {
+                if Self::command_exists(terminal) {
+                    terminal_cmd = Some(*terminal);
+                    break;
+                }
+            }
+            
+            if let Some(terminal) = terminal_cmd {
+                command = tokio::process::Command::new(terminal);
+                command.args(&["-e", &app.exec]);
+            }
+        }
+        
+        let result = command.spawn();
+        
+        match result {
+            Ok(mut child) => {
+
+                // don't wait for the child process to complete
+                task::spawn(async move {
+                    let _ = child.wait().await;
+                });
+                Ok(())
+            }
+            Err(e) => {
+                LOG.error(&format!("Failed to launch {}: {}", app.name, e));
+                Err(ApplicationError::IoError(e))
+            }
+        }
+    }
+
+    fn parse_exec_command(&self, exec: &str) -> tokio::process::Command {
+        let cleaned_exec = exec
+            .replace("%f", "")  // single file
+            .replace("%F", "")  // multiple files  
+            .replace("%u", "")  // single URL
+            .replace("%U", "")  // multiple URLs
+            .replace("%d", "")  // directory
+            .replace("%D", "")  // multiple directories
+            .replace("%n", "")  // single filename
+            .replace("%N", "")  // multiple filenames
+            .replace("%i", "")  // icon
+            .replace("%c", "")  // translated name
+            .replace("%k", "")  // desktop file location
+            .replace("%v", "")  // device
+            .replace("%%", "%"); // literal %
+        
+        let parts: Vec<&str> = cleaned_exec.split_whitespace().collect();
+        let mut command = tokio::process::Command::new(parts[0]);
+        
+        if parts.len() > 1 {
+            command.args(&parts[1..]);
+        }
+        
+        command
+    }
+
+    /// refresh applications from disk
+    pub async fn refresh(&mut self) -> Result<(), ApplicationError> {
+        LOG.debug("Refreshing applications...");
+        self.applications.clear();
+        self.load_applications().await
+    }
+
+    pub fn count(&self) -> usize {
+        self.applications.len()
     }
 }
