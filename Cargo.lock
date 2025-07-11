@@ -104,24 +104,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "better-starlight"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "clap",
- "futures",
- "glib",
- "gtk4",
- "gtk4-layer-shell",
- "lazy_static",
- "libadwaita",
- "once_cell",
- "serde",
- "tokio",
- "which",
-]
-
-[[package]]
 name = "bitflags"
 version = "2.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1097,6 +1079,24 @@ checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "starlight"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "futures",
+ "glib",
+ "gtk4",
+ "gtk4-layer-shell",
+ "lazy_static",
+ "libadwaita",
+ "once_cell",
+ "serde",
+ "tokio",
+ "which",
 ]
 
 [[package]]
