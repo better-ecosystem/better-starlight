@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - Fixed not showing system app icons
+- Close starlight after launching app
 
 ### 🚜 Refactor
 
