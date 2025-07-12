@@ -5,7 +5,6 @@ install_dir := "/usr/bin"
 desktop_file := "assets/starlight.desktop"
 icon_file := "assets/starlight.svg"
 symbolic_icon_file := "assets/starlight-symbolic.svg"
-install_dir := "/usr/bin"
 icon_target_dir := "/usr/share/icons/hicolor"
 
 install:
