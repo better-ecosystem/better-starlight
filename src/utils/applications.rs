@@ -319,7 +319,7 @@ impl ApplicationManager {
         if app.terminal {
 
             // try to find a terminal emulator to launch terminal apps
-            let terminal_emulators = ["gnome-terminal", "konsole", "foot", "alacritty", "kitty"];
+            let terminal_emulators = ["kitty", "alacritty", "gnome-terminal", "konsole", "foot"];
             let mut terminal_cmd = None;
             
             for terminal in &terminal_emulators {

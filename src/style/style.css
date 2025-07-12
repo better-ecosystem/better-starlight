@@ -1,7 +1,6 @@
 /* main window */
 window {
     border-radius: 16px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
     color: #f0f0f0;
     font-family: "SF Pro", "Inter", "Roboto", sans-serif;
     font-size: 14px;

@@ -180,16 +180,27 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
 
     // Set up app launch functionality
     let app_state_launch = app_state.clone();
+    let window_clone = window.clone();
     list_box.connect_row_activated(move |_list_box, row| {
         if let Some(app_name) = Some(row.widget_name().to_string()) {
             let manager = app_state_launch.app_manager.clone();
             let app_name = app_name.to_string();
+            let window_to_close = window_clone.clone();
 
             glib::spawn_future_local(async move {
                 let manager = manager.read().await;
                 if let Some(app) = manager.get_application(&app_name) {
-                    if let Err(e) = manager.launch_application(app).await {
-                        LOG.error(&format!("Failed to launch application: {:?}", e));
+                    match manager.launch_application(app).await {
+                        Ok(_) => {
+                            LOG.error(&format!("launched {} sucessfully", app_name));
+                            window_to_close.close();
+                            exit(0);
+                        }
+                        Err(e) => {
+                            LOG.error(&format!("Failed to launch application: {:?}", e));
+                            window_to_close.close();
+                            exit(0);
+                        }
                     }
                 }
             });
