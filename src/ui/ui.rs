@@ -36,7 +36,7 @@ impl AppState {
 pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     let window = adw::ApplicationWindow::new(app);
     window.set_title(Some("starlight"));
-    window.set_size_request(600, 600);
+    window.set_size_request(600, 80);
     LOG.debug("window layer setup complete");
 
     // create app state
@@ -55,7 +55,7 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     });
 
     // mainbox that holds all components
-    let content = Box::new(gtk::Orientation::Vertical, 10);
+    let content = Box::new(gtk::Orientation::Vertical, 12);
     content.set_margin_top(12);
     content.set_margin_bottom(12);
     content.set_margin_start(12);
@@ -106,11 +106,11 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     scroll_content.append(&status_label);
 
     let scrolled_window = ScrolledWindow::new();
+    scrolled_window.set_height_request(500);
     scrolled_window.set_css_classes(&["scrolled-window"]);
     scrolled_window.set_child(Some(&scroll_content));
 
     content.append(&search_box);
-    content.append(&scrolled_window);
 
     window.add_controller(key_controller);
     window.set_content(Some(&content));
@@ -120,9 +120,25 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     let list_box_search = list_box.clone();
     let status_label_search = status_label.clone();
 
+    let window_clone = window.clone();
     search_entry.connect_changed(move |entry| {
         let query = entry.text().to_string();
         app_state_search.current_search.replace(query.clone());
+
+        if query.is_empty() {
+            if scrolled_window.parent().is_none() {
+                content.remove(&scrolled_window);
+            }
+            scrolled_window.set_visible(false);
+            animate_window_height(&window_clone, 500, 80);
+            return;
+        } else {
+            if !scrolled_window.parent().is_some() {
+                content.append(&scrolled_window);
+            }
+            scrolled_window.set_visible(true);
+            animate_window_height(&window_clone, 80, 500);
+        }
 
         // update the list based on search
         let manager = app_state_search.app_manager.clone();
@@ -246,7 +262,6 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
     // app icon
     let icon = if let Some(icon_name) = &app.icon {
         if icon_name.starts_with('/') {
-
             let image = gtk::Image::new();
             image.set_from_file(Some(icon_name));
             if image.paintable().is_some() {
@@ -254,7 +269,6 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
                 image.set_margin_start(5);
                 image
             } else {
-
                 create_icon_from_theme(icon_name)
             }
         } else {
@@ -345,9 +359,11 @@ fn create_icon_from_theme(icon_name: &str) -> gtk::Image {
                 image.set_icon_size(gtk::IconSize::Large);
                 image.set_margin_start(5);
                 return image;
-            }
-            else {
-                LOG.warn(&format!("Failed to get icon for {} falling back to default {}", icon_name, fallback));
+            } else {
+                LOG.warn(&format!(
+                    "Failed to get icon for {} falling back to default {}",
+                    icon_name, fallback
+                ));
             }
         }
     }
@@ -361,3 +377,22 @@ fn create_default_icon() -> gtk::Image {
     image.set_margin_start(5);
     image
 }
+
+fn animate_window_height(window: &ApplicationWindow, from: i32, to: i32) {
+    let window = window.clone();
+    let step = if to > from { 10 } else { -10 };
+    let mut current = from;
+
+    glib::timeout_add_local(std::time::Duration::from_millis(5), move || {
+        current += step;
+        window.set_default_size(600, current);
+
+        if (step > 0 && current >= to) || (step < 0 && current <= to) {
+            window.set_default_size(600, to);
+            glib::ControlFlow::Break
+        } else {
+            glib::ControlFlow::Continue
+        }
+    });
+}
+
