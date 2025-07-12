@@ -20,7 +20,7 @@ just install
 ### Quick Installation
 
 ``` bash
-curl -L https://github.com/better-ecosystem/better-starlight/releases/download/v1.0/starlight -o ~/.local/bin/starlight && chmod +x ~/.local/bin/starlight
+curl -L https://github.com/better-ecosystem/better-starlight/releases/download/v1.1/starlight -o ~/.local/bin/starlight && chmod +x ~/.local/bin/starlight
 ```
 
 ## Usage
