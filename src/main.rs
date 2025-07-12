@@ -1,12 +1,13 @@
 pub mod utils;
 pub mod ui;
+pub mod style;
 
 use clap::{Parser, ArgAction};
 use gtk::prelude::*;
 use gtk4_layer_shell::{KeyboardMode, Layer, LayerShell};
 use lazy_static::lazy_static;
 
-use crate::{ui::ui::build_main_ui, utils::logger::{LogLevel, Logger}};
+use crate::{style::style::load_css, ui::ui::build_main_ui, utils::logger::{LogLevel, Logger}};
 
 lazy_static! {
     static ref LOG: Logger = Logger::new("main",LogLevel::Debug);
@@ -45,6 +46,7 @@ async fn main(){
         let window = build_main_ui(app);
         setup_layer_shell(&window);
         LOG.debug("window layer setup complete");
+        load_css();
         window.present();
     });
 
