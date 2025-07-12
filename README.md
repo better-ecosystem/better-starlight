@@ -38,3 +38,21 @@ sudo rm -rf /usr/bin/starlight
 ``` bash  
 just uninstall
 ```
+
+### TODO
+
+- [ ] Search web
+- [ ] Search files
+- [ ] Show currently opened windows
+- [ ] Math calculations
+- [ ] Unit conversion
+- [ ] Session controls
+- [ ] Clipboard (maybe)
+
+### In Progress
+
+- [ ] Command launcher
+
+### Done
+
+- [x] Application launcher
