@@ -1,5 +1,6 @@
 use crate::utils::{
     applications::{ApplicationManager, DesktopApplication},
+    command::{get_executables_from_path, run_command},
     logger::{LogLevel, Logger},
 };
 use adw::{ApplicationWindow, prelude::AdwApplicationWindowExt};
@@ -38,6 +39,8 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     window.set_title(Some("starlight"));
     window.set_size_request(600, 80);
     LOG.debug("window layer setup complete");
+
+    const PAGE_SIZE: usize = 50;
 
     // create app state
     let app_state = Rc::new(AppState::new());
@@ -120,90 +123,217 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     let list_box_search = list_box.clone();
     let status_label_search = status_label.clone();
 
-    let window_clone = window.clone();
+    let window_search = window.clone();
+    let content_search = content.clone();
+    let scrolled_window_search = scrolled_window.clone();
+
     search_entry.connect_changed(move |entry| {
         let query = entry.text().to_string();
-        app_state_search.current_search.replace(query.clone());
 
-        if query.is_empty() {
-            if scrolled_window.parent().is_none() {
-                content.remove(&scrolled_window);
-            }
-            scrolled_window.set_visible(false);
-            animate_window_height(&window_clone, 500, 80);
-            return;
-        } else {
-            if !scrolled_window.parent().is_some() {
-                content.append(&scrolled_window);
-            }
-            scrolled_window.set_visible(true);
-            animate_window_height(&window_clone, 80, 500);
-        }
+        if query.starts_with("r:") || query.starts_with("run:") {
+            let cmd_query = query
+                .trim_start_matches("r:")
+                .trim_start_matches("run:")
+                .trim()
+                .to_string();
 
-        // update the list based on search
-        let manager = app_state_search.app_manager.clone();
-        let list_box_clone = list_box_search.clone();
-        let status_label_clone = status_label_search.clone();
+            let list_box_clone = list_box_search.clone();
+            let status_label_clone = status_label_search.clone();
+            let content_clone = content_search.clone();
+            let scrolled_window_clone_query = scrolled_window_search.clone();
+            let window_clone2 = window_search.clone();
 
-        glib::spawn_future_local(async move {
-            let manager = manager.read().await;
-            let apps = if query.is_empty() {
-                manager.get_applications()
-            } else {
-                manager.search_applications(&query)
-            };
+            glib::spawn_future_local(async move {
+                let commands = get_executables_from_path().await;
+                let filtered = commands
+                    .iter()
+                    .filter(|cmd| cmd.contains(&cmd_query))
+                    .take(1000) // currently show fist 1000 for temporary optimization
+                    .cloned()
+                    .collect::<Vec<_>>();
 
-            // clear existing items
-            while let Some(child) = list_box_clone.first_child() {
-                list_box_clone.remove(&child);
-            }
+                let total_filtered = filtered.len();
+                let commands_to_show = &filtered[..PAGE_SIZE.min(total_filtered)];
 
-            if apps.is_empty() {
-                status_label_clone.set_visible(true);
-                list_box_clone.set_visible(false);
-                if query.is_empty() {
-                    status_label_clone.set_text("No applications installed");
+                while let Some(child) = list_box_clone.first_child() {
+                    list_box_clone.remove(&child);
+                }
+
+                if filtered.is_empty() {
+                    status_label_clone.set_text(&format!("No matching commands '{}'", cmd_query));
+                    status_label_clone.set_visible(true);
+                    list_box_clone.set_visible(false);
                 } else {
-                    status_label_clone.set_text(&format!("No applications found for '{}'", query));
+                    status_label_clone.set_visible(false);
+                    list_box_clone.set_visible(true);
+
+                    for cmd in commands_to_show {
+                        let row = gtk::ListBoxRow::new();
+                        row.set_widget_name(&cmd);
+                        let label = Label::new(Some(&cmd));
+                        label.set_halign(gtk::Align::Start);
+                        label.add_css_class("title");
+                        row.set_child(Some(&label));
+                        row.add_css_class("card");
+                        row.set_activatable(true);
+                        list_box_clone.append(&row);
+                    }
+
+                    let filtered_commands = Rc::new(RefCell::new(filtered.clone()));
+                    let offset = Rc::new(RefCell::new(PAGE_SIZE.min(filtered.len())));
+
+                    let list_box_clone2 = list_box_clone.clone();
+                    let filtered_commands_clone = filtered_commands.clone();
+                    let offset_clone = offset.clone();
+                    let scrolled_window_clone = scrolled_window_clone_query.clone();
+
+                    scrolled_window_clone
+                        .vadjustment()
+                        .connect_value_changed(move |adjustment| {
+                            let threshold = 30.0;
+                            if adjustment.value() + adjustment.page_size()
+                                >= adjustment.upper() - threshold
+                            {
+                                let offset_val = *offset_clone.borrow();
+                                let filtered = filtered_commands_clone.borrow();
+
+                                if offset_val < filtered.len() {
+                                    let next_offset = (offset_val + PAGE_SIZE).min(filtered.len());
+
+                                    for cmd in &filtered[offset_val..next_offset] {
+                                        let row = gtk::ListBoxRow::new();
+                                        row.set_widget_name(&cmd);
+                                        let label = Label::new(Some(&cmd));
+                                        label.set_halign(gtk::Align::Start);
+                                        label.add_css_class("title");
+                                        row.set_child(Some(&label));
+                                        row.add_css_class("card");
+                                        row.set_activatable(true);
+                                        list_box_clone2.append(&row);
+                                    }
+
+                                    *offset_clone.borrow_mut() = next_offset;
+                                }
+                            }
+                        });
                 }
+
+                if scrolled_window_clone_query.parent().is_none() {
+                    content_clone.append(&scrolled_window_clone_query);
+                }
+                scrolled_window_clone_query.set_visible(true);
+                animate_window_height(&window_clone2, 80, 500);
+            });
+        } else {
+            app_state_search.current_search.replace(query.clone());
+
+            if query.is_empty() {
+                if scrolled_window_search.parent().is_none() {
+                    content_search.remove(&scrolled_window_search);
+                }
+                scrolled_window_search.set_visible(false);
+                animate_window_height(&window_search, 500, 80);
+                return;
             } else {
-                status_label_clone.set_visible(false);
-                list_box_clone.set_visible(true);
-
-                for app in apps {
-                    let row = create_app_row(app);
-                    list_box_clone.append(&row);
+                if !scrolled_window_search.parent().is_some() {
+                    content_search.append(&scrolled_window_search);
                 }
+                scrolled_window_search.set_visible(true);
+                animate_window_height(&window_search, 80, 500);
             }
-        });
-    });
 
-    // Set up app launch functionality
-    let app_state_launch = app_state.clone();
-    let window_clone = window.clone();
-    list_box.connect_row_activated(move |_list_box, row| {
-        if let Some(app_name) = Some(row.widget_name().to_string()) {
-            let manager = app_state_launch.app_manager.clone();
-            let app_name = app_name.to_string();
-            let window_to_close = window_clone.clone();
+            // update the list based on search
+            let manager = app_state_search.app_manager.clone();
+            let list_box_clone = list_box_search.clone();
+            let status_label_clone = status_label_search.clone();
 
             glib::spawn_future_local(async move {
                 let manager = manager.read().await;
-                if let Some(app) = manager.get_application(&app_name) {
-                    match manager.launch_application(app).await {
-                        Ok(_) => {
-                            LOG.error(&format!("launched {} sucessfully", app_name));
-                            window_to_close.close();
-                            exit(0);
-                        }
-                        Err(e) => {
-                            LOG.error(&format!("Failed to launch application: {:?}", e));
-                            window_to_close.close();
-                            exit(0);
-                        }
+                let apps = if query.is_empty() {
+                    manager.get_applications()
+                } else {
+                    manager.search_applications(&query)
+                };
+
+                // clear existing items
+                while let Some(child) = list_box_clone.first_child() {
+                    list_box_clone.remove(&child);
+                }
+
+                if apps.is_empty() {
+                    status_label_clone.set_visible(true);
+                    list_box_clone.set_visible(false);
+                    if query.is_empty() {
+                        status_label_clone.set_text("No applications installed");
+                    } else {
+                        status_label_clone
+                            .set_text(&format!("No applications found for '{}'", query));
+                    }
+                } else {
+                    status_label_clone.set_visible(false);
+                    list_box_clone.set_visible(true);
+
+                    for app in apps {
+                        let row = create_app_row(app);
+                        list_box_clone.append(&row);
                     }
                 }
             });
+        }
+    });
+    // Set up app launch functionality
+    let app_state_launch = app_state.clone();
+    let window_launch = window.clone();
+    let search_entry_launch = search_entry.clone();
+
+    list_box.connect_row_activated(move |_list_box, row| {
+        let search_entry_clone = search_entry_launch.clone();
+        let query = search_entry_clone.text().to_string();
+
+        if query.starts_with("r:") || query.starts_with("run:") {
+            let cmd = row.widget_name().to_string();
+            let search_term = query
+            .trim_start_matches("r:")
+            .trim_start_matches("run:")
+            .trim()
+            .to_string();
+
+            // If user added args like: 'better-bar -d' use them
+            let full_cmd = if search_term.contains(' ') && !cmd.contains(' ') {
+                search_term
+            } else if cmd.starts_with(&search_term) || search_term.len() < cmd.len() {
+                cmd
+            } else {
+                search_term
+            };
+
+            run_command(&full_cmd);
+            window_launch.close();
+            exit(0);
+        } else {
+            if let Some(app_name) = Some(row.widget_name().to_string()) {
+                let manager = app_state_launch.app_manager.clone();
+                let app_name = app_name.to_string();
+                let window_to_close = window_launch.clone();
+
+                glib::spawn_future_local(async move {
+                    let manager = manager.read().await;
+                    if let Some(app) = manager.get_application(&app_name) {
+                        match manager.launch_application(app).await {
+                            Ok(_) => {
+                                LOG.debug(&format!("launched {} sucessfully", app_name));
+                                window_to_close.close();
+                                exit(0);
+                            }
+                            Err(e) => {
+                                LOG.error(&format!("Failed to launch application: {:?}", e));
+                                window_to_close.close();
+                                exit(0);
+                            }
+                        }
+                    }
+                });
+            }
         }
     });
 
@@ -406,4 +536,3 @@ fn animate_window_height(window: &ApplicationWindow, from: i32, to: i32) {
         }
     });
 }
-
