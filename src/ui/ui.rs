@@ -1,14 +1,17 @@
-use std::process::exit;
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::Arc;
+use crate::utils::{
+    applications::{ApplicationManager, DesktopApplication},
+    logger::{LogLevel, Logger},
+};
 use adw::{ApplicationWindow, prelude::AdwApplicationWindowExt};
 use gtk::{
-    gdk::Key, prelude::*, Box, Entry, EventControllerKey, Label, ListBox, ScrolledWindow, Spinner
+    Box, Entry, EventControllerKey, Label, ListBox, ScrolledWindow, Spinner, gdk::Key, prelude::*,
 };
 use lazy_static::lazy_static;
+use std::cell::RefCell;
+use std::process::exit;
+use std::rc::Rc;
+use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::utils::{applications::{ApplicationManager, DesktopApplication}, logger::{LogLevel, Logger}};
 
 lazy_static! {
     static ref LOG: Logger = Logger::new("ui", LogLevel::Debug);
@@ -60,27 +63,28 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     content.set_css_classes(&["content"]);
 
     // search entry
+    let search_box = Box::new(gtk::Orientation::Horizontal, 0);
     let search_entry = Entry::new();
     search_entry.set_placeholder_text(Some("Search applications..."));
     search_entry.set_icon_from_icon_name(
         gtk::EntryIconPosition::Primary,
         Some("system-search-symbolic"),
     );
-    search_entry.add_css_class("flat");
     search_entry.add_css_class("search-entry");
     search_entry.set_hexpand(true);
+    search_box.append(&search_entry);
 
     // Loading indicator
     let loading_box = Box::new(gtk::Orientation::Horizontal, 10);
     loading_box.set_halign(gtk::Align::Center);
     loading_box.set_valign(gtk::Align::Center);
     loading_box.set_vexpand(true);
-    
+
     let spinner = Spinner::new();
     spinner.set_spinning(true);
     let loading_label = Label::new(Some("Loading applications..."));
     loading_label.add_css_class("dim-label");
-    
+
     loading_box.append(&spinner);
     loading_box.append(&loading_label);
 
@@ -96,32 +100,35 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     status_label.set_valign(gtk::Align::Center);
     status_label.set_visible(false);
 
-    content.append(&search_entry);
-    content.append(&loading_box);
-    content.append(&list_box);
-    content.append(&status_label);
+    let scroll_content = Box::new(gtk::Orientation::Vertical, 10);
+    scroll_content.append(&loading_box);
+    scroll_content.append(&list_box);
+    scroll_content.append(&status_label);
 
-    let scrolled_window  =  ScrolledWindow::new();
+    let scrolled_window = ScrolledWindow::new();
     scrolled_window.set_css_classes(&["scrolled-window"]);
-    scrolled_window.set_child(Some(&content));
+    scrolled_window.set_child(Some(&scroll_content));
+
+    content.append(&search_box);
+    content.append(&scrolled_window);
 
     window.add_controller(key_controller);
-    window.set_content(Some(&scrolled_window));
+    window.set_content(Some(&content));
 
     // setup search functionality
     let app_state_search = app_state.clone();
     let list_box_search = list_box.clone();
     let status_label_search = status_label.clone();
-    
+
     search_entry.connect_changed(move |entry| {
         let query = entry.text().to_string();
         app_state_search.current_search.replace(query.clone());
-        
+
         // update the list based on search
         let manager = app_state_search.app_manager.clone();
         let list_box_clone = list_box_search.clone();
         let status_label_clone = status_label_search.clone();
-        
+
         glib::spawn_future_local(async move {
             let manager = manager.read().await;
             let apps = if query.is_empty() {
@@ -129,12 +136,12 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
             } else {
                 manager.search_applications(&query)
             };
-            
-            // clear existing items 
+
+            // clear existing items
             while let Some(child) = list_box_clone.first_child() {
                 list_box_clone.remove(&child);
             }
-            
+
             if apps.is_empty() {
                 status_label_clone.set_visible(true);
                 list_box_clone.set_visible(false);
@@ -146,7 +153,7 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
             } else {
                 status_label_clone.set_visible(false);
                 list_box_clone.set_visible(true);
-                
+
                 for app in apps {
                     let row = create_app_row(app);
                     list_box_clone.append(&row);
@@ -161,7 +168,7 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
         if let Some(app_name) = Some(row.widget_name().to_string()) {
             let manager = app_state_launch.app_manager.clone();
             let app_name = app_name.to_string();
-            
+
             glib::spawn_future_local(async move {
                 let manager = manager.read().await;
                 if let Some(app) = manager.get_application(&app_name) {
@@ -179,23 +186,26 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     let loading_box_load = loading_box.clone();
     let list_box_load = list_box.clone();
     let status_label_load = status_label.clone();
-    
+
     glib::spawn_future_local(async move {
         LOG.debug("Starting application loading...");
-        
+
         let mut manager = app_state_load.app_manager.write().await;
         match manager.load_applications().await {
             Ok(_) => {
-                LOG.debug(&format!("Successfully loaded {} applications", manager.count()));
-                
+                LOG.debug(&format!(
+                    "Successfully loaded {} applications",
+                    manager.count()
+                ));
+
                 loading_box_load.set_visible(false);
-                
-                // show the loaded list 
+
+                // show the loaded list
                 list_box_load.set_visible(true);
-                
+
                 // initial trigger for search
                 // search_entry_load.set_text(&search_entry.text());
-                
+
                 search_entry_load.grab_focus();
             }
             Err(e) => {
@@ -217,9 +227,10 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
     row.set_margin_bottom(4);
     row.set_margin_start(8);
     row.set_margin_end(8);
-    
+
     // Set widget name to app identifier for launch functionality
-    let app_id = app.desktop_file_path
+    let app_id = app
+        .desktop_file_path
         .file_stem()
         .unwrap_or_default()
         .to_string_lossy()
@@ -234,7 +245,6 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
 
     // app icon
     let icon = if let Some(icon_name) = &app.icon {
-
         // try to load the specific icon, fallback to default
         let image = gtk::Image::new();
         if icon_name.starts_with('/') {
@@ -242,17 +252,17 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
         } else {
             image.set_icon_name(Some(icon_name));
         }
-        
-        // if failed to load or no icon found use default icon 
+
+        // if failed to load or no icon found use default icon
         if image.paintable().is_none() {
             image.set_icon_name(Some("application-x-executable"));
         }
-        
+
         image
     } else {
         gtk::Image::from_icon_name("application-x-executable")
     };
-    
+
     icon.set_pixel_size(32);
 
     // app name and description
@@ -268,12 +278,13 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
     app_title.add_css_class("title");
 
     // use app comments or GenericName as description
-    let description = app.comment
+    let description = app
+        .comment
         .as_ref()
         .or(app.generic_name.as_ref())
         .map(|s| s.as_str())
         .unwrap_or("Application");
-    
+
     let app_desc = Label::new(Some(description));
     app_desc.set_halign(gtk::Align::Start);
     app_desc.add_css_class("dim-label");
@@ -298,6 +309,6 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
     row.set_child(Some(&row_box));
     row.add_css_class("card");
     row.set_activatable(true);
-    
+
     row
 }
