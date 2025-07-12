@@ -5,7 +5,7 @@ use crate::utils::{
 };
 use adw::{ApplicationWindow, prelude::AdwApplicationWindowExt};
 use gtk::{
-    Box, Entry, EventControllerKey, Label, ListBox, ScrolledWindow, Spinner, gdk::Key, prelude::*,
+    gdk::Key, prelude::*, Box, Entry, EventControllerKey, Label, ListBox, ScrolledWindow, Spinner
 };
 use lazy_static::lazy_static;
 use std::cell::RefCell;
@@ -37,6 +37,7 @@ impl AppState {
 pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     let window = adw::ApplicationWindow::new(app);
     window.set_title(Some("starlight"));
+    window.set_icon_name(Some("starlight"));
     window.set_size_request(600, 80);
     LOG.debug("window layer setup complete");
 
@@ -293,10 +294,10 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
         if query.starts_with("r:") || query.starts_with("run:") {
             let cmd = row.widget_name().to_string();
             let search_term = query
-            .trim_start_matches("r:")
-            .trim_start_matches("run:")
-            .trim()
-            .to_string();
+                .trim_start_matches("r:")
+                .trim_start_matches("run:")
+                .trim()
+                .to_string();
 
             // If user added args like: 'better-bar -d' use them
             let full_cmd = if search_term.contains(' ') && !cmd.contains(' ') {
@@ -420,8 +421,6 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
         LOG.warn(&format!("Falling back to default"));
         create_default_icon()
     };
-
-    icon.set_pixel_size(32);
 
     // app name and description
     let app_box = Box::new(gtk::Orientation::Vertical, 2);
