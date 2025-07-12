@@ -41,6 +41,7 @@ just uninstall
 
 ### TODO
 
+- [ ] wiki for styling and config
 - [ ] Search web
 - [ ] Search files
 - [ ] Show currently opened windows
