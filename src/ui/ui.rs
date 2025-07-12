@@ -245,22 +245,25 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
 
     // app icon
     let icon = if let Some(icon_name) = &app.icon {
-        // try to load the specific icon, fallback to default
-        let image = gtk::Image::new();
         if icon_name.starts_with('/') {
+
+            let image = gtk::Image::new();
             image.set_from_file(Some(icon_name));
+            if image.paintable().is_some() {
+                image.set_icon_size(gtk::IconSize::Large);
+                image.set_margin_start(5);
+                image
+            } else {
+
+                create_icon_from_theme(icon_name)
+            }
         } else {
-            image.set_icon_name(Some(icon_name));
+            create_icon_from_theme(icon_name)
         }
-
-        // if failed to load or no icon found use default icon
-        if image.paintable().is_none() {
-            image.set_icon_name(Some("application-x-executable"));
-        }
-
-        image
     } else {
-        gtk::Image::from_icon_name("application-x-executable")
+        LOG.warn(&format!("Failed to get icon"));
+        LOG.warn(&format!("Falling back to default"));
+        create_default_icon()
     };
 
     icon.set_pixel_size(32);
@@ -311,4 +314,50 @@ fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
     row.set_activatable(true);
 
     row
+}
+
+fn create_icon_from_theme(icon_name: &str) -> gtk::Image {
+    let image = gtk::Image::new();
+
+    if let Some(display) = gtk::gdk::Display::default() {
+        let icon_theme = gtk::IconTheme::for_display(&display);
+
+        if icon_theme.has_icon(icon_name) {
+            image.set_icon_name(Some(icon_name));
+            image.set_icon_size(gtk::IconSize::Large);
+            image.set_margin_start(5);
+            return image;
+        }
+    }
+
+    let fallback_icons = [
+        icon_name,
+        &format!("{}-symbolic", icon_name),
+        &icon_name.to_lowercase(),
+        "application-x-executable",
+    ];
+
+    for fallback in &fallback_icons {
+        if let Some(display) = gtk::gdk::Display::default() {
+            let icon_theme = gtk::IconTheme::for_display(&display);
+            if icon_theme.has_icon(fallback) {
+                image.set_icon_name(Some(fallback));
+                image.set_icon_size(gtk::IconSize::Large);
+                image.set_margin_start(5);
+                return image;
+            }
+            else {
+                LOG.warn(&format!("Failed to get icon for {} falling back to default {}", icon_name, fallback));
+            }
+        }
+    }
+
+    create_default_icon()
+}
+
+fn create_default_icon() -> gtk::Image {
+    let image = gtk::Image::from_icon_name("application-x-executable");
+    image.set_icon_size(gtk::IconSize::Large);
+    image.set_margin_start(5);
+    image
 }
