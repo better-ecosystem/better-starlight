@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Starlight
 Comment=Fast application launcher
-Exec=spotlight
-Icon=spotlight
+Exec=starlight
+Icon=starlight
 Terminal=false
 Type=Application
 Categories=Utility;Launcher;
