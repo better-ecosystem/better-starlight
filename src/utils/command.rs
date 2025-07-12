@@ -1,7 +1,7 @@
 use crate::utils::logger::{LogLevel, Logger};
 
 lazy_static::lazy_static! {
-    static ref LOG: Logger = Logger::new("applications", LogLevel::Debug);
+    static ref LOG: Logger = Logger::new("command", LogLevel::Debug);
 }
 
 pub async fn get_executables_from_path() -> Vec<String> {
@@ -33,24 +33,18 @@ fn is_executable(path: &std::path::Path) -> bool {
         .unwrap_or(false)
 }
 
-pub fn run_in_user_terminal(command: &str) {
-    let terminal_emulators = ["alacritty", "kitty", "foot", "wezterm", "gnome-terminal", "konsole", "xterm"];
-    let terminal = terminal_emulators
-        .iter()
-        .find(|&&t| which::which(t).is_ok())
-        .unwrap_or(&"xterm");
+pub fn run_command(command: &str) {
+    let mut cmd = std::process::Command::new("sh");
+    cmd.arg("-c").arg(command);
 
-    let mut cmd = std::process::Command::new(terminal);
-
-    if *terminal == "gnome-terminal" {
-        cmd.args(&["--", "sh", "-c", command]);
-    } else if *terminal == "konsole" {
-        cmd.args(&["-e", command]);
-    } else {
-        cmd.args(&["-e", "sh", "-c", command]);
-    }
+    cmd.stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .stdin(std::process::Stdio::null());
 
     if let Err(e) = cmd.spawn() {
-        LOG.error(&format!("Failed to run command: {:?}", e));
+        LOG.error(&format!("failed to run '{}': {:?}", command, e));
+    } else {
+        LOG.debug(&format!("launched '{}' successfully", command));
     }
 }
+
