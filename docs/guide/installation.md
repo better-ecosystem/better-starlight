@@ -3,7 +3,7 @@
 ## Quick install
 
 ``` sh
-curl -L https://github.com/better-ecosystem/better-starlight/releases/download/v1.1/starlight -o ~/.local/bin/starlight && chmod +x ~/.local/bin/starlight
+curl -L https://github.com/better-ecosystem/better-starlight/releases/download/v1.2/starlight -o ~/.local/bin/starlight && chmod +x ~/.local/bin/starlight
 ```
 
 ## From Source
