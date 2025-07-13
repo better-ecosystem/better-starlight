@@ -57,3 +57,7 @@ just uninstall
 ### Done
 
 - [x] Application launcher
+
+### References
+
+- Docs was created by taking reference (yoinked) from [ags docs](https://github.com/aylur/ags)

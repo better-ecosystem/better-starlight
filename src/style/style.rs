@@ -12,7 +12,7 @@ pub fn load_css() {
     let custom_css = dirs::config_dir()
         .unwrap_or_default()
         .join("starlight")
-        .join("style.css");
+        .join("starlight.css");
 
     if custom_css.exists() {
         css_provider.load_from_path(&custom_css);
