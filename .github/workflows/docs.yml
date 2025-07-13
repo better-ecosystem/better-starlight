@@ -3,6 +3,9 @@ name: Deploy VitePress site
 on:
   push:
     branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/**'
 
 permissions:
   contents: read
