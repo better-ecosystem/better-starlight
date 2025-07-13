@@ -21,8 +21,10 @@ export default defineConfig({
 
     sidebar: [
       {
-        text: 'Installation',
+        text: 'Starlight',
         items: [
+          { text: 'Installation', link: '/guide/installation' },
+          { text: 'Usage', link: '/guide/usage' },
           { text: 'Configuration', link: '/guide/configuration' },
           { text: 'Customization', link: '/guide/customize' },
           { text: 'Contribution', link: '/guide/contribute' }
