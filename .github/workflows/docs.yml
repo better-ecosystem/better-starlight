@@ -6,6 +6,10 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
 
 permissions:
   contents: read
