@@ -24,8 +24,8 @@ export default defineConfig({
         text: 'Installation',
         items: [
           { text: 'Configuration', link: '/guide/configuration' },
-          { text: 'Customization', link: '/guide/customize.md' },
-          { text: 'Contribution', link: '/guide/contribute.md' }
+          { text: 'Customization', link: '/guide/customize' },
+          { text: 'Contribution', link: '/guide/contribute' }
         ]
       }
     ],
