@@ -4,6 +4,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "Starlight",
   description: "Documentation for starlight",
+  head:[
+      ['link', { rel: 'icon', href: '/better-starlight/favicon.ico' }],
+  ],
+  titleTemplate: true,
   outDir: "./dist",
   base: "/better-starlight/",
   lastUpdated: true,
@@ -37,7 +41,7 @@ export default defineConfig({
     ],
 
     editLink: {
-      pattern: "https://github.com/aylur/ags/edit/main/docs/:path",
+      pattern: "https://github.com/better-ecosystem/better-starlight/edit/main/docs/:path",
       text: "Edit this page on GitHub",
     },
 
