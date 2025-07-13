@@ -5,7 +5,7 @@ export default defineConfig({
   title: "Starlight",
   description: "Documentation for starlight",
   outDir: "./dist",
-  base: "/starlight/",
+  base: "/better-starlight/",
   lastUpdated: true,
 
   themeConfig: {
