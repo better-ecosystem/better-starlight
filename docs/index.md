@@ -14,7 +14,7 @@ hero:
       link: /guide/installation
     - theme: alt
       text: Configuration
-      link: /configuration
+      link: /guide/configuration
 
 features:
   - title: Lightweight
