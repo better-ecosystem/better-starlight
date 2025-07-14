@@ -5,39 +5,7 @@
 
 ## Installation
 
-### Dependencies
-
-- just
-
-#### Manual Installation
-
-``` bash
-git clone https://github.com/better-ecosystem/better-starlight.git
-cd better-starlight
-just install
-```
-
-### Quick Installation
-
-``` bash
-curl -L https://github.com/better-ecosystem/better-starlight/releases/download/v1.1/starlight -o ~/.local/bin/starlight && chmod +x ~/.local/bin/starlight
-```
-
-## Usage
-
-Run `starlight` to launch the app.
-
-## Uninstall
-
-``` bash  
-sudo rm -rf /usr/bin/starlight
-```
-
-<p align="center" ><b>OR</b></p>
-
-``` bash  
-just uninstall
-```
+For installation and configuration checkout the [docs](https://better-ecosystem.github.io/better-starlight/).
 
 ### TODO
 
