@@ -9,7 +9,6 @@ For installation and configuration checkout the [docs](https://better-ecosystem.
 
 ### TODO
 
-- [ ] Search web
 - [ ] Search files
 - [ ] Show currently opened windows
 - [ ] Math calculations
@@ -19,6 +18,7 @@ For installation and configuration checkout the [docs](https://better-ecosystem.
 
 ### In Progress
 
+- [ ] Search web
 - [ ] wiki for styling and config
 
 ### Done
