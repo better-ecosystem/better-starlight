@@ -1,5 +1,6 @@
-use std::collections::HashMap;
 use std::process::Command;
+
+use indexmap::IndexMap;
 
 use crate::utils::logger::{LogLevel, Logger};
 
@@ -16,12 +17,12 @@ pub struct WebSearchResult {
 }
 
 pub struct WebSearchManager {
-    search_engines: HashMap<String, String>,
+    search_engines: IndexMap<String, String>,
 }
 
 impl WebSearchManager {
     pub fn new() -> Self {
-        let mut search_engines = HashMap::new();
+        let mut search_engines = IndexMap::new();
         
         search_engines.insert("google".to_string(), "https://www.google.com/search?q={}".to_string());
         search_engines.insert("duckduckgo".to_string(), "https://duckduckgo.com/?q={}".to_string());
