@@ -9,7 +9,6 @@ For installation and configuration checkout the [docs](https://better-ecosystem.
 
 ### TODO
 
-- [ ] wiki for styling and config
 - [ ] Search web
 - [ ] Search files
 - [ ] Show currently opened windows
@@ -20,11 +19,12 @@ For installation and configuration checkout the [docs](https://better-ecosystem.
 
 ### In Progress
 
-- [ ] Command launcher
+- [ ] wiki for styling and config
 
 ### Done
 
 - [x] Application launcher
+- [x] Command launcher
 
 ### References
 

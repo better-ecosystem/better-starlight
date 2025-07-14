@@ -19,6 +19,8 @@ Refer to below css resources to learn basic styling:
 
 Create a `starlight.css` in `~/.config/starlight/`
 
+Reference from default css for `starlight`
+
 :::code-group
 
 ``` css
