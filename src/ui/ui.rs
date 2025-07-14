@@ -2,10 +2,11 @@ use crate::utils::{
     applications::{ApplicationManager, DesktopApplication},
     command::{get_executables_from_path, run_command},
     logger::{LogLevel, Logger},
+    web::{WebSearchManager, WebSearchResult},
 };
 use adw::{ApplicationWindow, prelude::AdwApplicationWindowExt};
 use gtk::{
-    gdk::Key, prelude::*, Box, Entry, EventControllerKey, Label, ListBox, ScrolledWindow, Spinner
+    Box, Entry, EventControllerKey, Label, ListBox, ScrolledWindow, Spinner, gdk::Key, prelude::*,
 };
 use lazy_static::lazy_static;
 use std::cell::RefCell;
@@ -142,14 +143,14 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
             let status_label_clone = status_label_search.clone();
             let content_clone = content_search.clone();
             let scrolled_window_clone_query = scrolled_window_search.clone();
-            let window_clone2 = window_search.clone();
+            let window_clone2 = window_search.clone(); // Create a new clone for this scope
 
             glib::spawn_future_local(async move {
                 let commands = get_executables_from_path().await;
                 let filtered = commands
                     .iter()
                     .filter(|cmd| cmd.contains(&cmd_query))
-                    .take(1000) // currently show fist 1000 for temporary optimization
+                    .take(1000)
                     .cloned()
                     .collect::<Vec<_>>();
 
@@ -225,6 +226,45 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
                 scrolled_window_clone_query.set_visible(true);
                 animate_window_height(&window_clone2, 80, 500);
             });
+        } else if query.starts_with("w:") || query.starts_with("web:") {
+            let web_query = query
+                .trim_start_matches("w:")
+                .trim_start_matches("web:")
+                .trim()
+                .to_string();
+
+            let web_list_box = list_box_search.clone();
+            let web_status_label = status_label_search.clone();
+            let web_content = content_search.clone();
+            let web_scrolled_window = scrolled_window_search.clone();
+            let web_window = window_search.clone();
+
+            glib::spawn_future_local(async move {
+                let web_manager = WebSearchManager::new();
+                let search_results = if web_query.is_empty() {
+                    web_manager.search_engines_for_query("")
+                } else {
+                    web_manager.search_engines_for_query(&web_query)
+                };
+
+                while let Some(child) = web_list_box.first_child() {
+                    web_list_box.remove(&child);
+                }
+
+                web_status_label.set_visible(false);
+                web_list_box.set_visible(true);
+
+                for result in search_results {
+                    let row = create_web_search_row(&result, &web_query);
+                    web_list_box.append(&row);
+                }
+
+                if web_scrolled_window.parent().is_none() {
+                    web_content.append(&web_scrolled_window);
+                }
+                web_scrolled_window.set_visible(true);
+                animate_window_height(&web_window, 80, 500);
+            });
         } else {
             app_state_search.current_search.replace(query.clone());
 
@@ -282,6 +322,7 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
             });
         }
     });
+
     // Set up app launch functionality
     let app_state_launch = app_state.clone();
     let window_launch = window.clone();
@@ -311,6 +352,22 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
             run_command(&full_cmd);
             window_launch.close();
             exit(0);
+        } else if query.starts_with("w:") || query.starts_with("web:") {
+            let url = row.widget_name().to_string();
+            let web_manager = WebSearchManager::new();
+
+            match web_manager.open_url(&url) {
+                Ok(_) => {
+                    LOG.debug(&format!("Opened URL: {}", url));
+                    window_launch.close();
+                    exit(0);
+                }
+                Err(e) => {
+                    LOG.error(&format!("Failed to open URL: {:?}", e));
+                    window_launch.close();
+                    exit(0);
+                }
+            }
         } else {
             if let Some(app_name) = Some(row.widget_name().to_string()) {
                 let manager = app_state_launch.app_manager.clone();
@@ -513,6 +570,81 @@ fn create_icon_from_theme(icon_name: &str) -> gtk::Image {
 
 fn create_default_icon() -> gtk::Image {
     let image = gtk::Image::from_icon_name("application-x-executable");
+    image.set_icon_size(gtk::IconSize::Large);
+    image.set_margin_start(5);
+    image
+}
+
+fn create_web_search_row(result: &WebSearchResult, _query: &str) -> gtk::ListBoxRow {
+    let row = gtk::ListBoxRow::new();
+    row.set_margin_bottom(4);
+    row.set_margin_bottom(4);
+    row.set_margin_start(8);
+    row.set_margin_end(8);
+
+    row.set_widget_name(&result.url);
+
+    let row_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    row_box.set_margin_top(8);
+    row_box.set_margin_bottom(8);
+    row_box.set_margin_start(8);
+    row_box.set_margin_end(8);
+
+    let icon = create_search_engine_icon(&result.search_engine);
+
+    let content_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    content_box.set_margin_top(8);
+    content_box.set_margin_bottom(8);
+    content_box.set_margin_start(8);
+    content_box.set_margin_end(8);
+    content_box.set_hexpand(true);
+
+    let title_label = gtk::Label::new(Some(&result.title));
+    title_label.set_halign(gtk::Align::Start);
+    title_label.add_css_class("title");
+
+    let desc_label = gtk::Label::new(Some(&result.description));
+    desc_label.set_halign(gtk::Align::Start);
+    desc_label.add_css_class("dim-label");
+    desc_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+
+    let url_label = gtk::Label::new(Some(&result.url));
+    url_label.set_halign(gtk::Align::Start);
+    url_label.add_css_class("dim-label");
+    url_label.add_css_class("caption");
+    url_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+
+    content_box.append(&title_label);
+    content_box.append(&desc_label);
+    content_box.append(&url_label);
+
+    row_box.append(&icon);
+    row_box.append(&content_box);
+
+    row.set_child(Some(&row_box));
+    row.add_css_class("card");
+    row.set_activatable(true);
+
+    row
+}
+
+fn create_search_engine_icon(engine: &str) -> gtk::Image {
+    let image = gtk::Image::new();
+
+    let icon_path = match engine {
+        "google" => "data/icons/google.png",
+        "duckduckgo" => "data/icons/duckduckgo.svg",
+        "youtube" => "data/icons/yt.png",
+        "stackoverflow" => "data/icons/stackoverflow.svg",
+        _ => "web-browser",
+    };
+    if std::path::Path::new(icon_path).exists() {
+        image.set_from_file(Some(icon_path));
+    } else {
+        // fallback to symbolic icon
+        image.set_icon_name(Some("web-browser"));
+    }
+
     image.set_icon_size(gtk::IconSize::Large);
     image.set_margin_start(5);
     image
