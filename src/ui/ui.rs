@@ -1,14 +1,21 @@
-use crate::{ui::{states::AppState, ui_helper::{create_app_row, create_web_search_row}}, utils::{
-    command::{get_executables_from_path, run_command},
-    logger::{LogLevel, Logger},
-    web::WebSearchManager,
-}};
+use crate::{
+    StartMode,
+    ui::{
+        states::AppState,
+        ui_helper::{create_app_row, create_web_search_row},
+    },
+    utils::{
+        command::{get_executables_from_path, run_command},
+        logger::{LogLevel, Logger},
+        web::WebSearchManager,
+    },
+};
 use adw::{ApplicationWindow, prelude::AdwApplicationWindowExt};
 use gtk::{
     Box, Entry, EventControllerKey, Label, ListBox, ScrolledWindow, Spinner, gdk::Key, prelude::*,
 };
 use lazy_static::lazy_static;
-use std::{cell::RefCell};
+use std::cell::RefCell;
 use std::process::exit;
 use std::rc::Rc;
 
@@ -16,7 +23,7 @@ lazy_static! {
     static ref LOG: Logger = Logger::new("ui", LogLevel::Debug);
 }
 
-pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
+pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> ApplicationWindow {
     let window = adw::ApplicationWindow::new(app);
     window.set_title(Some("starlight"));
     window.set_icon_name(Some("starlight"));
@@ -47,17 +54,35 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     content.set_margin_start(12);
     content.set_margin_end(12);
     content.set_css_classes(&["content"]);
-
+    
     // search entry
     let search_box = Box::new(gtk::Orientation::Horizontal, 0);
+    let prefix_label = Label::new(None);
+    prefix_label.add_css_class("search-prefix");
     let search_entry = Entry::new();
-    search_entry.set_placeholder_text(Some("Search applications..."));
+    
+    match start_mode {
+        StartMode::Web => {
+            prefix_label.set_text("web");
+            search_entry.set_placeholder_text(Some("web: Search the web..."));
+        }
+        StartMode::Run => {
+            prefix_label.set_text("run");
+            search_entry.set_placeholder_text(Some("run: Run command..."));
+        }
+        StartMode::Default => {
+            prefix_label.set_visible(false);
+            search_entry.set_placeholder_text(Some("Search applications..."));
+        }
+    }
+
     search_entry.set_icon_from_icon_name(
         gtk::EntryIconPosition::Primary,
         Some("system-search-symbolic"),
     );
     search_entry.add_css_class("search-entry");
     search_entry.set_hexpand(true);
+    search_box.append(&prefix_label);
     search_box.append(&search_entry);
 
     // Loading indicator
@@ -109,9 +134,10 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
     let window_search = window.clone();
     let content_search = content.clone();
     let scrolled_window_search = scrolled_window.clone();
+    let prefix_clone = prefix_label.clone();
 
     search_entry.connect_changed(move |entry| {
-        let query = entry.text().to_string();
+        let query = format!("{}{}", prefix_clone.text(), entry.text());
 
         if query.starts_with("r:") || query.starts_with("run:") {
             let cmd_query = query
@@ -124,7 +150,7 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
             let status_label_clone = status_label_search.clone();
             let content_clone = content_search.clone();
             let scrolled_window_clone_query = scrolled_window_search.clone();
-            let window_clone2 = window_search.clone(); // Create a new clone for this scope
+            let window_clone2 = window_search.clone();
 
             glib::spawn_future_local(async move {
                 let commands = get_executables_from_path().await;
@@ -311,7 +337,7 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
 
     list_box.connect_row_activated(move |_list_box, row| {
         let search_entry_clone = search_entry_launch.clone();
-        let query = search_entry_clone.text().to_string();
+        let query = format!("{}{}", prefix_label.text(), search_entry_clone.text());
 
         if query.starts_with("r:") || query.starts_with("run:") {
             let cmd = row.widget_name().to_string();
@@ -399,10 +425,18 @@ pub fn build_main_ui(app: &adw::Application) -> ApplicationWindow {
                 // show the loaded list
                 list_box_load.set_visible(true);
 
-                // initial trigger for search
-                // search_entry_load.set_text(&search_entry.text());
+                // Trigger search after loading if we have a prefix
+                let current_text = search_entry_load.text().to_string();
+                if !current_text.is_empty() {
+                    search_entry_load.emit_activate();
+                }
 
                 search_entry_load.grab_focus();
+
+                // Position cursor at end if we have prefilled text
+                if !current_text.is_empty() {
+                    search_entry_load.set_position(-1);
+                }
             }
             Err(e) => {
                 LOG.error(&format!("Failed to load applications: {:?}", e));
