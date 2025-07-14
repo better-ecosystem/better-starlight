@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use crate::utils::logger::{LogLevel, Logger};
 
 lazy_static::lazy_static! {
-    static ref LOG: Logger = Logger::new("ui", LogLevel::Debug);
+    static ref LOG: Logger = Logger::new("web", LogLevel::Debug);
 }
 
 #[derive(Debug, Clone)]
@@ -24,8 +24,8 @@ impl WebSearchManager {
     pub fn new() -> Self {
         let mut search_engines = IndexMap::new();
         
-        search_engines.insert("google".to_string(), "https://www.google.com/search?q={}".to_string());
         search_engines.insert("duckduckgo".to_string(), "https://duckduckgo.com/?q={}".to_string());
+        search_engines.insert("google".to_string(), "https://www.google.com/search?q={}".to_string());
         search_engines.insert("youtube".to_string(), "https://www.youtube.com/results?search_query={}".to_string());
         search_engines.insert("stackoverflow".to_string(), "https://stackoverflow.com/search?q={}".to_string());
         
@@ -41,8 +41,8 @@ impl WebSearchManager {
         
         for (engine_name, url_template) in &self.search_engines {
                 let description = match engine_name.as_str() {
-                    "google" => "Search with Google",
                     "duckduckgo" => "Search with DuckDuckGo (Privacy-focused)",
+                    "google" => "Search with Google",
                     "youtube" => "Search YouTube videos",
                     "stackoverflow" => "Search Stack Overflow",
                     _ => "Web search",
