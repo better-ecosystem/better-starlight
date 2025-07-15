@@ -254,18 +254,24 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
 
             glib::spawn_future_local(async move {
                 let web_manager = WebSearchManager::new();
-                let search_results = if web_query.is_empty() {
-                    web_manager.search_engines_for_query("")
-                } else {
+                let search_results = if !web_query.is_empty() {
                     web_manager.search_engines_for_query(&web_query)
+                } else {
+                    web_status_label.set_text("Enter your query to search on web.");
+                    Vec::new()
                 };
 
                 while let Some(child) = web_list_box.first_child() {
                     web_list_box.remove(&child);
                 }
 
-                web_status_label.set_visible(false);
-                web_list_box.set_visible(true);
+                if web_query.is_empty() {
+                    web_status_label.set_visible(true);
+                    web_list_box.set_visible(false);
+                } else {
+                    web_status_label.set_visible(false);
+                    web_list_box.set_visible(true);
+                }
 
                 for result in search_results {
                     let row = create_web_search_row(&result, &web_query);
@@ -288,7 +294,6 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
             app_state_search.current_search.replace(query.clone());
 
             if query.is_empty() {
-                
                 if scrolled_window_search.parent().is_none() {
                     content_search.remove(&scrolled_window_search);
                 }

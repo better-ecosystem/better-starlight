@@ -26,6 +26,7 @@ All notable changes to this project will be documented in this file.
 - Update to v1.2
 - Added web search
 - Update to v1.3
+- Added cli options for modes
 
 ### 🐛 Bug Fixes
 
@@ -34,10 +35,13 @@ All notable changes to this project will be documented in this file.
 - Remove multiple install_dir in justfile
 - Fixed typo
 - Fix workflow
+- Unordered search engines
+- Auto select first child
 
 ### 🚜 Refactor
 
 - Minor changes
+- Spearate ui for application
 
 ### 📚 Documentation
 
@@ -60,6 +64,9 @@ All notable changes to this project will be documented in this file.
 - Update readme for docs
 - Update contribution
 - Update docs and readme
+- Update changelog
+- Update todo
+- Update usage
 
 ### 🎨 Styling
 

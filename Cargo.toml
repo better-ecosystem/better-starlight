@@ -2,6 +2,10 @@
 name = "starlight"
 version = "1.3.0"
 edition = "2024"
+authors = ["sandeshsharma92@gmail.com"]
+description = "A fast application launcher, command runner and web search app"
+repository = "https://github.com/better-ecosystem/better-starlight/"
+license = "LICENSE"
 
 [dependencies]
 # for ui
@@ -23,3 +27,15 @@ which = "8.0.0"
 dirs = "6.0.0"
 urlencoding = "2.1.3"
 indexmap = "2.10.0"
+rust-embed = "8.7.2"
+
+[build-dependencies]
+glib-build-tools = "0.21.0"
+
+[package.metadata.bundle]
+name = "Starlight"
+identifier = "com.better.starlight"
+description = "A fast application launcher, command runner and web search app"
+icon = ["resources/app/icon.png"]
+resources = ["resources/*"]
+category = "Utility"

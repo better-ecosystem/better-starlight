@@ -2,9 +2,9 @@ set shell := ["bash", "-cu"]
 
 bin_name := "starlight"
 install_dir := "/usr/bin"
-desktop_file := "assets/starlight.desktop"
-icon_file := "assets/starlight.svg"
-symbolic_icon_file := "assets/starlight-symbolic.svg"
+desktop_file := "resources/app/starlight.desktop"
+icon_file := "resources/app/starlight.svg"
+symbolic_icon_file := "resources/app/starlight-symbolic.svg"
 icon_target_dir := "/usr/share/icons/hicolor"
 
 install:

@@ -1,9 +1,28 @@
-use crate::utils::{applications::DesktopApplication, logger::{LogLevel, Logger}, web::WebSearchResult};
-use gtk::{prelude::*, Box, Label};
+use crate::utils::{
+    applications::DesktopApplication,
+    logger::{LogLevel, Logger},
+    web::WebSearchResult,
+};
+use gtk::{Box, Label, gdk_pixbuf::PixbufLoader, prelude::*};
 use lazy_static::lazy_static;
+use rust_embed::Embed;
 
 lazy_static! {
     pub static ref LOG: Logger = Logger::new("ui_helper", LogLevel::Debug);
+}
+#[derive(Embed)]
+#[folder = "resources/icons/"]
+struct Asset;
+fn create_image_from_embedded(data: &[u8]) -> gtk::Image {
+    let loader = PixbufLoader::new();
+    loader
+        .write(data)
+        .expect("Failed to write embedded image data from resources");
+    loader.close().expect("Failed to close PixbufLoader");
+    let pixbuf = loader.pixbuf().expect("Failed to get pixbuf from loader");
+    let image = gtk::Image::new();
+    image.set_from_pixbuf(Some(&pixbuf));
+    image
 }
 
 pub fn create_app_row(app: &DesktopApplication) -> gtk::ListBoxRow {
@@ -201,23 +220,36 @@ pub fn create_web_search_row(result: &WebSearchResult, _query: &str) -> gtk::Lis
 pub fn create_search_engine_icon(engine: &str) -> gtk::Image {
     let image = gtk::Image::new();
 
-    let icon_path = match engine {
-        "google" => "data/icons/google.png",
-        "duckduckgo" => "data/icons/duckduckgo.svg",
-        "youtube" => "data/icons/youtube.png",
-        "stackoverflow" => "data/icons/stackoverflow.svg",
-        _ => "web-browser",
+    let icon_name = match engine {
+        "google" => "google.png",
+        "duckduckgo" => "duckduckgo.png",
+        "youtube" => "youtube.png",
+        "stackoverflow" => "stackoverflow.png",
+        _ => {
+            LOG.debug("how there can be another engine ??");
+            image.set_icon_name(Some("web-browser"));
+            image.set_icon_size(gtk::IconSize::Large);
+            image.set_margin_start(5);
+            return image;
+        }
     };
-    if std::path::Path::new(icon_path).exists() {
-        LOG.debug("using custom icons for search engines");
-        image.set_from_file(Some(icon_path));
-    } else {
-        // fallback to deafault icon
-        LOG.debug("failed to get custom icon using default icon for search engines");
-        image.set_icon_name(Some("web-browser"));
+    match Asset::get(icon_name) {
+        Some(content) => {
+            let image = create_image_from_embedded(&content.data);
+            image.set_icon_size(gtk::IconSize::Large);
+            image.set_margin_start(5);
+            image
+        }
+        None => {
+            eprintln!(
+                "Warning: embedded icon {} missing, falling back to default icon",
+                icon_name
+            );
+            let image = gtk::Image::new();
+            image.set_icon_name(Some("web-browser"));
+            image.set_icon_size(gtk::IconSize::Large);
+            image.set_margin_start(5);
+            image
+        }
     }
-
-    image.set_icon_size(gtk::IconSize::Large);
-    image.set_margin_start(5);
-    image
 }
