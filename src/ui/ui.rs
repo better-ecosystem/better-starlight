@@ -54,20 +54,20 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
     content.set_margin_start(12);
     content.set_margin_end(12);
     content.set_css_classes(&["content"]);
-    
+
     // search entry
     let search_box = Box::new(gtk::Orientation::Horizontal, 0);
     let prefix_label = Label::new(None);
     prefix_label.add_css_class("search-prefix");
     let search_entry = Entry::new();
-    
+
     match start_mode {
         StartMode::Web => {
-            prefix_label.set_text("web");
+            prefix_label.set_text("web:");
             search_entry.set_placeholder_text(Some("web: Search the web..."));
         }
         StartMode::Run => {
-            prefix_label.set_text("run");
+            prefix_label.set_text("run:");
             search_entry.set_placeholder_text(Some("run: Run command..."));
         }
         StartMode::Default => {
@@ -187,6 +187,12 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                         row.set_activatable(true);
                         list_box_clone.append(&row);
                     }
+                    if let Some(first_row) = list_box_clone
+                        .first_child()
+                        .and_then(|c| c.downcast::<gtk::ListBoxRow>().ok())
+                    {
+                        list_box_clone.select_row(Some(&first_row));
+                    }
 
                     let filtered_commands = Rc::new(RefCell::new(filtered.clone()));
                     let offset = Rc::new(RefCell::new(PAGE_SIZE.min(filtered.len())));
@@ -265,6 +271,12 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                     let row = create_web_search_row(&result, &web_query);
                     web_list_box.append(&row);
                 }
+                if let Some(first_row) = web_list_box
+                    .first_child()
+                    .and_then(|c| c.downcast::<gtk::ListBoxRow>().ok())
+                {
+                    web_list_box.select_row(Some(&first_row));
+                }
 
                 if web_scrolled_window.parent().is_none() {
                     web_content.append(&web_scrolled_window);
@@ -276,6 +288,7 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
             app_state_search.current_search.replace(query.clone());
 
             if query.is_empty() {
+                
                 if scrolled_window_search.parent().is_none() {
                     content_search.remove(&scrolled_window_search);
                 }
@@ -325,8 +338,21 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                         let row = create_app_row(app);
                         list_box_clone.append(&row);
                     }
+                    if let Some(first_row) = list_box_clone
+                        .first_child()
+                        .and_then(|c| c.downcast::<gtk::ListBoxRow>().ok())
+                    {
+                        list_box_clone.select_row(Some(&first_row));
+                    }
                 }
             });
+        }
+    });
+
+    let list_box_clone = list_box.clone();
+    search_entry.connect_activate(move |_| {
+        if let Some(selected_row) = list_box_clone.selected_row() {
+            selected_row.activate();
         }
     });
 
