@@ -68,7 +68,6 @@ pub fn try_unit_conversion(query: &str) -> Option<(String, &'static str)> {
     None
 }
 
-
 pub fn copy_to_clipboard(text: &str) {
     if let Some(display) = gtk::gdk::Display::default() {
         let clipboard = display.clipboard();

@@ -1,17 +1,12 @@
 use crate::{
-    StartMode,
     ui::{
         states::AppState,
         ui_helper::{
             create_app_row, create_icon_from_theme, create_web_search_row, scroll_to_selected,
         },
-    },
-    utils::{
-        command::{get_executables_from_path, run_command},
-        logger::{LogLevel, Logger},
-        math_and_units::{copy_to_clipboard, try_math_expression, try_unit_conversion},
-        web::WebSearchManager,
-    },
+    }, utils::{
+        command::{get_executables_from_path, run_command}, logger::{LogLevel, Logger}, math_and_units::{copy_to_clipboard, try_math_expression, try_unit_conversion}, web::WebSearchManager
+    }, StartMode
 };
 use adw::{ApplicationWindow, prelude::AdwApplicationWindowExt};
 use gtk::{
