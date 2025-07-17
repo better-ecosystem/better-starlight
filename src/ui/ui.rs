@@ -17,7 +17,6 @@ use gtk::{
 };
 use lazy_static::lazy_static;
 use std::cell::RefCell;
-use std::process::exit;
 use std::rc::Rc;
 
 lazy_static! {
@@ -43,7 +42,7 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
         Key::Escape => {
             LOG.debug("application closed");
             window_clone.close();
-            exit(0);
+            true.into()
         }
         _ => false.into(),
     });
@@ -61,21 +60,6 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
     let prefix_label = Label::new(None);
     prefix_label.add_css_class("search-prefix");
     let search_entry = Entry::new();
-
-    match start_mode {
-        StartMode::Web => {
-            prefix_label.set_text("web:");
-            search_entry.set_placeholder_text(Some("web: Search the web..."));
-        }
-        StartMode::Run => {
-            prefix_label.set_text("run:");
-            search_entry.set_placeholder_text(Some("run: Run command..."));
-        }
-        StartMode::Default => {
-            prefix_label.set_visible(false);
-            search_entry.set_placeholder_text(Some("Search applications..."));
-        }
-    }
 
     search_entry.set_icon_from_icon_name(
         gtk::EntryIconPosition::Primary,
@@ -113,10 +97,9 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
     status_label.set_visible(false);
 
     let scroll_content = Box::new(gtk::Orientation::Vertical, 10);
-    scroll_content.append(&loading_box);
     scroll_content.append(&list_box);
     scroll_content.append(&status_label);
-
+    
     let scrolled_window = ScrolledWindow::new();
     scrolled_window.set_height_request(500);
     scrolled_window.set_hscrollbar_policy(PolicyType::Never);
@@ -125,9 +108,25 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
     scrolled_window.set_child(Some(&scroll_content));
 
     content.append(&search_box);
-
+    
     window.add_controller(key_controller);
     window.set_content(Some(&content));
+    
+    match start_mode {
+        StartMode::Web => {
+            prefix_label.set_text("web:");
+            search_entry.set_placeholder_text(Some("web: Search the web..."));
+        }
+        StartMode::Run => {
+            prefix_label.set_text("run:");
+            search_entry.set_placeholder_text(Some("run: Run command..."));
+        }
+        StartMode::Default => {
+            scroll_content.append(&loading_box);
+            prefix_label.set_visible(false);
+            search_entry.set_placeholder_text(Some("Search applications..."));
+        }
+    }
 
     // setup search functionality
     let app_state_search = app_state.clone();
@@ -149,6 +148,12 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                 .trim()
                 .to_string();
 
+            let cmd_name = cmd_query
+                .split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_string();
+
             let list_box_clone = list_box_search.clone();
             let status_label_clone = status_label_search.clone();
             let content_clone = content_search.clone();
@@ -159,7 +164,7 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                 let commands = get_executables_from_path().await;
                 let filtered = commands
                     .iter()
-                    .filter(|cmd| cmd.contains(&cmd_query))
+                    .filter(|cmd| cmd.contains(&cmd_name))
                     .take(1000)
                     .cloned()
                     .collect::<Vec<_>>();
@@ -402,9 +407,7 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
             }
             glib::Propagation::Stop
         }
-        _ => {
-            glib::Propagation::Proceed
-        }
+        _ => glib::Propagation::Proceed,
     });
 
     window.add_controller(main_controller);
@@ -428,25 +431,13 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
         let query = format!("{}{}", prefix_label.text(), search_entry_clone.text());
 
         if query.starts_with("r:") || query.starts_with("run:") {
-            let cmd = row.widget_name().to_string();
-            let search_term = query
+            let full_cmd = query
                 .trim_start_matches("r:")
                 .trim_start_matches("run:")
-                .trim()
-                .to_string();
+                .trim();
 
-            // If user added args like: 'better-bar -d' use them
-            let full_cmd = if search_term.contains(' ') && !cmd.contains(' ') {
-                search_term
-            } else if cmd.starts_with(&search_term) || search_term.len() < cmd.len() {
-                cmd
-            } else {
-                search_term
-            };
-
-            run_command(&full_cmd);
+            run_command(full_cmd);
             window_launch.close();
-            exit(0);
         } else if query.starts_with("w:") || query.starts_with("web:") {
             let url = row.widget_name().to_string();
             let web_manager = WebSearchManager::new();
@@ -455,12 +446,10 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                 Ok(_) => {
                     LOG.debug(&format!("Opened URL: {}", url));
                     window_launch.close();
-                    exit(0);
                 }
                 Err(e) => {
                     LOG.error(&format!("Failed to open URL: {:?}", e));
                     window_launch.close();
-                    exit(0);
                 }
             }
         } else {
@@ -476,12 +465,10 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                             Ok(_) => {
                                 LOG.debug(&format!("launched {} sucessfully", app_name));
                                 window_to_close.close();
-                                exit(0);
                             }
                             Err(e) => {
                                 LOG.error(&format!("Failed to launch application: {:?}", e));
                                 window_to_close.close();
-                                exit(0);
                             }
                         }
                     }
@@ -494,56 +481,58 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
         list_box.select_row(Some(&first_row));
     }
 
-    // load applications asynchronously
-    let app_state_load = app_state.clone();
-    let search_entry_load = search_entry.clone();
-    let loading_box_load = loading_box.clone();
-    let list_box_load = list_box.clone();
-    let status_label_load = status_label.clone();
-    let scrolled_window_load = scrolled_window.clone();
+    if start_mode == StartMode::Default {
+        // load applications asynchronously
+        let app_state_load = app_state.clone();
+        let search_entry_load = search_entry.clone();
+        let loading_box_load = loading_box.clone();
+        let list_box_load = list_box.clone();
+        let status_label_load = status_label.clone();
+        let scrolled_window_load = scrolled_window.clone();
 
-    glib::spawn_future_local(async move {
-        LOG.debug("Starting application loading...");
+        glib::spawn_future_local(async move {
+            LOG.debug("Starting application loading...");
 
-        let mut manager = app_state_load.app_manager.write().await;
-        match manager.load_applications().await {
-            Ok(_) => {
-                LOG.debug(&format!(
-                    "Successfully loaded {} applications",
-                    manager.count()
-                ));
+            let mut manager = app_state_load.app_manager.write().await;
+            match manager.load_applications().await {
+                Ok(_) => {
+                    LOG.debug(&format!(
+                        "Successfully loaded {} applications",
+                        manager.count()
+                    ));
 
-                loading_box_load.set_visible(false);
+                    loading_box_load.set_visible(false);
 
-                // show the loaded list
-                list_box_load.set_visible(true);
+                    // show the loaded list
+                    list_box_load.set_visible(true);
 
-                if let Some(first_row) = list_box_load.row_at_index(0) {
-                    list_box_load.select_row(Some(&first_row));
-                    scroll_to_selected(&list_box_load, &scrolled_window_load);
+                    if let Some(first_row) = list_box_load.row_at_index(0) {
+                        list_box_load.select_row(Some(&first_row));
+                        scroll_to_selected(&list_box_load, &scrolled_window_load);
+                    }
+
+                    // Trigger search after loading if we have a prefix
+                    let current_text = search_entry_load.text().to_string();
+                    if !current_text.is_empty() {
+                        search_entry_load.emit_activate();
+                    }
+
+                    search_entry_load.grab_focus();
+
+                    // Position cursor at end if we have prefilled text
+                    if !current_text.is_empty() {
+                        search_entry_load.set_position(-1);
+                    }
                 }
-
-                // Trigger search after loading if we have a prefix
-                let current_text = search_entry_load.text().to_string();
-                if !current_text.is_empty() {
-                    search_entry_load.emit_activate();
-                }
-
-                search_entry_load.grab_focus();
-
-                // Position cursor at end if we have prefilled text
-                if !current_text.is_empty() {
-                    search_entry_load.set_position(-1);
+                Err(e) => {
+                    LOG.error(&format!("Failed to load applications: {:?}", e));
+                    loading_box_load.set_visible(false);
+                    status_label_load.set_text("Failed to load applications");
+                    status_label_load.set_visible(true);
                 }
             }
-            Err(e) => {
-                LOG.error(&format!("Failed to load applications: {:?}", e));
-                loading_box_load.set_visible(false);
-                status_label_load.set_text("Failed to load applications");
-                status_label_load.set_visible(true);
-            }
-        }
-    });
+        });
+    }
 
     window.present();
     window

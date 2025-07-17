@@ -32,7 +32,7 @@ struct Args {
     run: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum StartMode {
     Default,
     Web,
