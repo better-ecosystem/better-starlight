@@ -28,17 +28,33 @@ starlight -w, --web
 
 ## Modes
 
-- Default
+### Default
 
 `starlight` will work as a appliaction launcher by default.
 
-- Command runner
+### Command runner
 
 use `r:` or `run:` in the search entry to switch to command runner.
 
-- Web search
+### Web search
 
 use `w:` or `web:` in the search entry to switch to web search mode.
+
+### Unit converter
+
+Example:
+
+``` sh
+10 gb to mb
+
+1020 mb
+```
+
+#### Available units
+
+- Distance
+- Storage Sizes
+- Temperature
 
 ### Available search engines
 

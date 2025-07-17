@@ -1,11 +1,15 @@
+use exmex::Express;
 use gtk::{prelude::*};
-use meval;
 use uom::si::f64::*;
 use uom::si::length::{kilometer, meter, mile};
 
 pub fn try_math_expression(query: &str) -> Option<(String, &'static str)> {
-    if let Ok(result) = meval::eval_str(query) {
-        Some((format!("{} = {}", query, result), "accessories-calculator"))
+    if let Ok(expr) = exmex::parse::<f64>(query) {
+        if let Ok(result) = expr.eval(&[]) {
+            Some((format!("{} = {}", query, result), "accessories-calculator"))
+        } else {
+            None
+        }
     } else {
         None
     }

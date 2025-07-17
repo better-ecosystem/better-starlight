@@ -1,6 +1,6 @@
 [package]
 name = "starlight"
-version = "1.3.0"
+version = "1.4.0"
 edition = "2024"
 authors = ["Sandesh Sharma <sandeshsharma924@gmail.com>"]
 description = "A fast application launcher, command runner and web search app"
@@ -31,7 +31,7 @@ rust-embed = "8.7.2"
 
 # calculation utils
 uom = "0.37.0"
-meval = "0.2.0"
+exmex = "0.20.4"
 
 [package.metadata.bundle]
 name = "Starlight"
