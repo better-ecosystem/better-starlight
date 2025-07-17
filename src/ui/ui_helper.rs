@@ -3,7 +3,7 @@ use crate::utils::{
     logger::{LogLevel, Logger},
     web::WebSearchResult,
 };
-use gtk::{Box, Label, gdk_pixbuf::PixbufLoader, prelude::*};
+use gtk::{gdk_pixbuf::PixbufLoader, prelude::*, Box, Label, ListBox, ScrolledWindow};
 use lazy_static::lazy_static;
 use rust_embed::Embed;
 
@@ -250,6 +250,27 @@ pub fn create_search_engine_icon(engine: &str) -> gtk::Image {
             image.set_icon_size(gtk::IconSize::Large);
             image.set_margin_start(5);
             image
+        }
+    }
+}
+
+pub fn scroll_to_selected(list_box: &ListBox, scrolled_window: &ScrolledWindow) {
+    if let Some(selected_row) = list_box.selected_row() {
+        let adjustment = scrolled_window.vadjustment();
+        
+        let row_allocation = selected_row.allocation();
+        let row_top = row_allocation.y() as f64;
+        let row_bottom = (row_allocation.y() + row_allocation.height()) as f64;
+        
+        let visible_top = adjustment.value();
+        let visible_bottom = visible_top + adjustment.page_size();
+        
+        let padding = 50.0;
+        
+        if row_top < visible_top + padding {
+            adjustment.set_value((row_top - padding).max(0.0));
+        } else if row_bottom > visible_bottom - padding {
+            adjustment.set_value((row_bottom - adjustment.page_size() + padding).min(adjustment.upper() - adjustment.page_size()));
         }
     }
 }

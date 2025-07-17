@@ -2,7 +2,7 @@ use crate::{
     StartMode,
     ui::{
         states::AppState,
-        ui_helper::{create_app_row, create_web_search_row},
+        ui_helper::{create_app_row, create_web_search_row, scroll_to_selected},
     },
     utils::{
         command::{get_executables_from_path, run_command},
@@ -12,7 +12,8 @@ use crate::{
 };
 use adw::{ApplicationWindow, prelude::AdwApplicationWindowExt};
 use gtk::{
-    Box, Entry, EventControllerKey, Label, ListBox, ScrolledWindow, Spinner, gdk::Key, prelude::*,
+    Box, Entry, EventControllerKey, Label, ListBox, PolicyType, ScrolledWindow, Spinner, gdk::Key,
+    prelude::*,
 };
 use lazy_static::lazy_static;
 use std::cell::RefCell;
@@ -118,6 +119,8 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
 
     let scrolled_window = ScrolledWindow::new();
     scrolled_window.set_height_request(500);
+    scrolled_window.set_hscrollbar_policy(PolicyType::Never);
+    scrolled_window.set_vscrollbar_policy(PolicyType::Automatic);
     scrolled_window.set_css_classes(&["scrolled-window"]);
     scrolled_window.set_child(Some(&scroll_content));
 
@@ -187,11 +190,10 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                         row.set_activatable(true);
                         list_box_clone.append(&row);
                     }
-                    if let Some(first_row) = list_box_clone
-                        .first_child()
-                        .and_then(|c| c.downcast::<gtk::ListBoxRow>().ok())
-                    {
+
+                    if let Some(first_row) = list_box_clone.row_at_index(0) {
                         list_box_clone.select_row(Some(&first_row));
+                        scroll_to_selected(&list_box_clone, &scrolled_window_clone_query);
                     }
 
                     let filtered_commands = Rc::new(RefCell::new(filtered.clone()));
@@ -277,11 +279,10 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                     let row = create_web_search_row(&result, &web_query);
                     web_list_box.append(&row);
                 }
-                if let Some(first_row) = web_list_box
-                    .first_child()
-                    .and_then(|c| c.downcast::<gtk::ListBoxRow>().ok())
-                {
+
+                if let Some(first_row) = web_list_box.row_at_index(0) {
                     web_list_box.select_row(Some(&first_row));
+                    scroll_to_selected(&web_list_box, &web_scrolled_window);
                 }
 
                 if web_scrolled_window.parent().is_none() {
@@ -292,19 +293,20 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
             });
         } else {
             app_state_search.current_search.replace(query.clone());
+            let scrolled_window_clone = scrolled_window_search.clone();
 
             if query.is_empty() {
-                if scrolled_window_search.parent().is_none() {
-                    content_search.remove(&scrolled_window_search);
+                if scrolled_window_clone.parent().is_none() {
+                    content_search.remove(&scrolled_window_clone);
                 }
-                scrolled_window_search.set_visible(false);
+                scrolled_window_clone.set_visible(false);
                 animate_window_height(&window_search, 500, 80);
                 return;
             } else {
-                if !scrolled_window_search.parent().is_some() {
-                    content_search.append(&scrolled_window_search);
+                if !scrolled_window_clone.parent().is_some() {
+                    content_search.append(&scrolled_window_clone);
                 }
-                scrolled_window_search.set_visible(true);
+                scrolled_window_clone.set_visible(true);
                 animate_window_height(&window_search, 80, 500);
             }
 
@@ -343,21 +345,76 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
                         let row = create_app_row(app);
                         list_box_clone.append(&row);
                     }
-                    if let Some(first_row) = list_box_clone
-                        .first_child()
-                        .and_then(|c| c.downcast::<gtk::ListBoxRow>().ok())
-                    {
+
+                    if let Some(first_row) = list_box_clone.row_at_index(0) {
                         list_box_clone.select_row(Some(&first_row));
+                        scroll_to_selected(&list_box_clone, &scrolled_window_clone);
                     }
                 }
             });
         }
     });
 
+    let main_controller = EventControllerKey::new();
+    let list_box_nav = list_box.clone();
+    let scrolled_window_nav = scrolled_window.clone();
+    let search_entry_nav = search_entry.clone();
+
+    main_controller.connect_key_pressed(move |_controller, key, _keycode, _state| match key {
+        gtk::gdk::Key::Down => {
+            if let Some(selected_row) = list_box_nav.selected_row() {
+                let index = selected_row.index();
+                if let Some(next_row) = list_box_nav.row_at_index(index + 1) {
+                    list_box_nav.select_row(Some(&next_row));
+                    scroll_to_selected(&list_box_nav, &scrolled_window_nav);
+                }
+            } else {
+                if let Some(first_row) = list_box_nav.row_at_index(0) {
+                    list_box_nav.select_row(Some(&first_row));
+                    scroll_to_selected(&list_box_nav, &scrolled_window_nav);
+                }
+            }
+            glib::Propagation::Stop
+        }
+        gtk::gdk::Key::Up => {
+            if let Some(selected_row) = list_box_nav.selected_row() {
+                let index = selected_row.index();
+                if index > 0 {
+                    if let Some(prev_row) = list_box_nav.row_at_index(index - 1) {
+                        list_box_nav.select_row(Some(&prev_row));
+                        scroll_to_selected(&list_box_nav, &scrolled_window_nav);
+                    }
+                }
+            }
+            glib::Propagation::Stop
+        }
+        gtk::gdk::Key::Return => {
+            if search_entry_nav.has_focus() {
+                if let Some(first_row) = list_box_nav.row_at_index(0) {
+                    first_row.activate();
+                }
+            } else {
+                if let Some(selected_row) = list_box_nav.selected_row() {
+                    selected_row.activate();
+                } else if let Some(first_row) = list_box_nav.row_at_index(0) {
+                    first_row.activate();
+                }
+            }
+            glib::Propagation::Stop
+        }
+        _ => {
+            glib::Propagation::Proceed
+        }
+    });
+
+    window.add_controller(main_controller);
+
     let list_box_clone = list_box.clone();
     search_entry.connect_activate(move |_| {
         if let Some(selected_row) = list_box_clone.selected_row() {
             selected_row.activate();
+        } else if let Some(first_row) = list_box_clone.row_at_index(0) {
+            first_row.activate();
         }
     });
 
@@ -433,12 +490,17 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
         }
     });
 
+    if let Some(first_row) = list_box.row_at_index(0) {
+        list_box.select_row(Some(&first_row));
+    }
+
     // load applications asynchronously
     let app_state_load = app_state.clone();
     let search_entry_load = search_entry.clone();
     let loading_box_load = loading_box.clone();
     let list_box_load = list_box.clone();
     let status_label_load = status_label.clone();
+    let scrolled_window_load = scrolled_window.clone();
 
     glib::spawn_future_local(async move {
         LOG.debug("Starting application loading...");
@@ -455,6 +517,11 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
 
                 // show the loaded list
                 list_box_load.set_visible(true);
+
+                if let Some(first_row) = list_box_load.row_at_index(0) {
+                    list_box_load.select_row(Some(&first_row));
+                    scroll_to_selected(&list_box_load, &scrolled_window_load);
+                }
 
                 // Trigger search after loading if we have a prefix
                 let current_text = search_entry_load.text().to_string();
