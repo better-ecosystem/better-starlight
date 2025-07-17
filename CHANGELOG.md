@@ -27,6 +27,9 @@ All notable changes to this project will be documented in this file.
 - Added web search
 - Update to v1.3
 - Added cli options for modes
+- Add args support for commands
+- Calculations and unit conversions
+- Added calculations and unit conversion in ui
 
 ### 🐛 Bug Fixes
 
@@ -37,6 +40,8 @@ All notable changes to this project will be documented in this file.
 - Fix workflow
 - Unordered search engines
 - Auto select first child
+- Fix icons for web engines
+- Key navigation
 
 ### 🚜 Refactor
 
@@ -71,6 +76,7 @@ All notable changes to this project will be documented in this file.
 ### 🎨 Styling
 
 - Remove typo
+- Minor changes
 
 ### ⚙️ Miscellaneous Tasks
 

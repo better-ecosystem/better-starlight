@@ -5,7 +5,7 @@ edition = "2024"
 authors = ["Sandesh Sharma <sandeshsharma924@gmail.com>"]
 description = "A fast application launcher, command runner and web search app"
 repository = "https://github.com/better-ecosystem/better-starlight/"
-license-file = "LICENSE"
+license = "LICENSE"
 
 [dependencies]
 # for ui
