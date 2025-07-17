@@ -2,11 +2,14 @@ use crate::{
     StartMode,
     ui::{
         states::AppState,
-        ui_helper::{create_app_row, create_web_search_row, scroll_to_selected},
+        ui_helper::{
+            create_app_row, create_icon_from_theme, create_web_search_row, scroll_to_selected,
+        },
     },
     utils::{
         command::{get_executables_from_path, run_command},
         logger::{LogLevel, Logger},
+        math_and_units::{copy_to_clipboard, try_math_expression, try_unit_conversion},
         web::WebSearchManager,
     },
 };
@@ -99,7 +102,7 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
     let scroll_content = Box::new(gtk::Orientation::Vertical, 10);
     scroll_content.append(&list_box);
     scroll_content.append(&status_label);
-    
+
     let scrolled_window = ScrolledWindow::new();
     scrolled_window.set_height_request(500);
     scrolled_window.set_hscrollbar_policy(PolicyType::Never);
@@ -108,10 +111,10 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
     scrolled_window.set_child(Some(&scroll_content));
 
     content.append(&search_box);
-    
+
     window.add_controller(key_controller);
     window.set_content(Some(&content));
-    
+
     match start_mode {
         StartMode::Web => {
             prefix_label.set_text("web:");
@@ -140,6 +143,84 @@ pub fn build_main_ui(app: &adw::Application, start_mode: StartMode) -> Applicati
 
     search_entry.connect_changed(move |entry| {
         let query = format!("{}{}", prefix_clone.text(), entry.text());
+
+        if let Some((result_str, icon_name)) = try_math_expression(&query) {
+            while let Some(child) = list_box_search.first_child() {
+                list_box_search.remove(&child);
+            }
+
+            let row = gtk::ListBoxRow::new();
+            let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+
+            let icon = create_icon_from_theme(icon_name);
+            icon.add_css_class("dim-icon");
+            let label = gtk::Label::new(Some(&result_str));
+            label.set_halign(gtk::Align::Start);
+            label.add_css_class("math-result");
+
+            hbox.append(&icon);
+            hbox.append(&label);
+            row.set_child(Some(&hbox));
+            row.add_css_class("card");
+            row.set_activatable(true);
+
+            let result_clone = result_str.clone();
+            row.connect_activate(move |_| {
+                copy_to_clipboard(&result_clone);
+                LOG.debug("Copied math result to clipboard");
+            });
+
+            list_box_search.append(&row);
+            list_box_search.set_visible(true);
+            status_label_search.set_visible(false);
+
+            if scrolled_window_search.parent().is_none() {
+                content_search.append(&scrolled_window_search);
+            }
+            scrolled_window_search.set_visible(true);
+            animate_window_height(&window_search, 80, 200);
+
+            return;
+        } else if let Some((result_str, icon_name)) = try_unit_conversion(&query) {
+
+            while let Some(child) = list_box_search.first_child() {
+                list_box_search.remove(&child);
+            }
+
+            let row = gtk::ListBoxRow::new();
+            let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+
+            let icon = create_icon_from_theme(icon_name);
+            icon.add_css_class("dim-icon");
+            let label = gtk::Label::new(Some(&result_str));
+            label.set_halign(gtk::Align::Start);
+            label.add_css_class("unit-result");
+
+            hbox.append(&icon);
+            hbox.append(&label);
+            row.set_child(Some(&hbox));
+            row.add_css_class("card");
+            row.set_activatable(true);
+
+            let result_clone = result_str.clone();
+            row.connect_activate(move |_| {
+                copy_to_clipboard(&result_clone);
+                LOG.debug("Copied unit conversion result to clipboard");
+            });
+
+            list_box_search.append(&row);
+
+            list_box_search.set_visible(true);
+            status_label_search.set_visible(false);
+
+            if scrolled_window_search.parent().is_none() {
+                content_search.append(&scrolled_window_search);
+            }
+            scrolled_window_search.set_visible(true);
+            animate_window_height(&window_search, 80, 200);
+
+            return;
+        }
 
         if query.starts_with("r:") || query.starts_with("run:") {
             let cmd_query = query

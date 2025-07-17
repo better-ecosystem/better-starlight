@@ -11,20 +11,20 @@ For installation and configuration checkout the [docs](https://better-ecosystem.
 
 - [ ] Search files
 - [ ] Show currently opened windows
-- [ ] Math calculations
-- [ ] Unit conversion
 - [ ] Session controls
 - [ ] Clipboard (maybe)
 
 ### In Progress
 
-- [ ] Search web
 - [ ] wiki for styling and config
+- [ ] Unit conversion
 
 ### Done
 
 - [x] Application launcher
 - [x] Command launcher
+- [x] Math calculations
+- [x] Search web
 
 ### References
 

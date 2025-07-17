@@ -83,4 +83,3 @@ fn trim_trailing_zeros(num: f64) -> String {
         format!("{:.4}", num).trim_end_matches('0').trim_end_matches('.').to_string()
     }
 }
-
