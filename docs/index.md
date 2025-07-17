@@ -5,8 +5,8 @@ pageClass: home-page
 
 hero:
   name: "STARLIGHT"
-  text: "Documentation for starlight"
-  tagline: Fast and customizeable app launcher 
+  text: "Documentation for Starlight"
+  tagline: Fast and customizable app launcher
   image: /icon.svg
   actions:
     - theme: brand
@@ -18,11 +18,11 @@ hero:
 
 features:
   - title: Lightweight
-    details: Starlight can run applications and commands in sigle app
+    details: Starlight can run applications and commands in a single app
   - title: Blazing fast
-    details: Written in rust for best performance
-  - title: Customizeable
-    details: Starlight uses gtk-css to customize the widgets
+    details: Written in Rust for best performance
+  - title: Customizable
+    details: Starlight uses GTK CSS to customize the widgets
 ---
 
 <style>

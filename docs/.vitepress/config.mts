@@ -4,8 +4,8 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "Starlight",
   description: "Documentation for starlight",
-  head:[
-      ['link', { rel: 'icon', href: '/better-starlight/favicon.ico' }],
+  head: [
+    ['link', { rel: 'icon', href: '/better-starlight/favicon.ico' }],
   ],
   titleTemplate: true,
   outDir: "./dist",
@@ -19,7 +19,7 @@ export default defineConfig({
       copyright: "Logo is created by Sandesh",
     },
     nav: [
-      { text: 'Home', link: '/' }, 
+      { text: 'Home', link: '/' },
       { text: 'Showcase', link: '/showcase' }
     ],
 
