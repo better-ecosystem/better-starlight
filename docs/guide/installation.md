@@ -6,6 +6,13 @@
 curl -L https://github.com/better-ecosystem/better-starlight/releases/download/v1.4/starlight -o ~/.local/bin/starlight && chmod +x ~/.local/bin/starlight
 ```
 
+**For Arch linux users**
+
+``` sh
+curl -LO https://raw.githubusercontent.com/better-ecosystem/better-starlight/refs/heads/main/PKGBUILD 
+makepkg -si
+```
+
 ## From Source
 
 1. Install dependencies
